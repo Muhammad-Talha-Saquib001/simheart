@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# SimHeart: downloaded data, run outputs and model checkpoints
+# (anchored with "/" so src/simheart/data/ is still tracked)
+/data/
+/outputs/
+/checkpoints/
+*.pt
+*.npz
