@@ -60,3 +60,20 @@ def high_frequency_fraction(
     power = torch.fft.rfft(flat - flat.mean(dim=1, keepdim=True), dim=1).abs() ** 2
     freqs = torch.fft.rfftfreq(flat.shape[1], d=1 / sampling_rate).to(flat.device)
     return power[:, freqs > cutoff_hz].sum(dim=1) / power[:, 1:].sum(dim=1).clamp_min(1e-12)
+
+
+def near_copy_rate(
+    generated: torch.Tensor,
+    train: torch.Tensor,
+    real_val: torch.Tensor,
+    quantile: float = 0.05,
+) -> float:
+    """Share of generated beats that are suspiciously close to a training beat.
+
+    The threshold is the ``quantile`` of the distances from real validation beats (other
+    patients, never trained on) to their nearest training beat. Real held-out beats
+    therefore score ``quantile`` (5 %) by construction; a generator that memorises training
+    beats scores higher.
+    """
+    threshold = torch.quantile(nearest_distances(real_val, train), quantile)
+    return float((nearest_distances(generated, train) < threshold).double().mean())

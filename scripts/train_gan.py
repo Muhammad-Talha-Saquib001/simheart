@@ -22,47 +22,18 @@ import torch
 
 from simheart.data.dataset import load_split
 from simheart.data.mitbih import SAMPLING_RATE
-from simheart.data.scaling import minmax_to_sim_range, sim_to_unit, unit_to_sim
-from simheart.evaluation.metrics import high_frequency_fraction
-from simheart.losses.euler import PAIRINGS, EulerLoss, best_euler_distance
+from simheart.data.scaling import minmax_to_sim_range, sim_to_unit
+from simheart.evaluation.physiology import physiology_metrics
+from simheart.losses.euler import PAIRINGS, EulerLoss
 from simheart.models.gan import NOISE_DIM
 from simheart.simulator import EcgSyn
-from simheart.simulator.fitting import ParamKDE, load_samplers
+from simheart.simulator.fitting import load_samplers
 from simheart.training.gan import GanTrainConfig, generate, load_generator, train_gan
 from simheart.utils import get_device, load_config, set_seed
 
 ROOT = Path(__file__).resolve().parents[1]
 R_PEAK_INDEX = 72
 TIME_MS = (np.arange(216) - R_PEAK_INDEX) / SAMPLING_RATE * 1000
-METRIC_K = 32  # parameter sets tried per beat for the physiology score
-METRIC_SEED = 123  # same parameter draws at every evaluation, for every run
-
-
-def physiology_metrics(sim: EcgSyn, sampler: ParamKDE, real_val: torch.Tensor):
-    """Physiology and smoothness scores for generated beats, with real validation references.
-
-    * euler_best_median: median over beats of the smallest Euler distance across 32 sampled
-      parameter sets, i.e. how close a beat is to *some* plausible simulator solution.
-    * hf_fraction_median: median share of signal power above 40 Hz (jaggedness).
-    """
-
-    def euler_score(beats_unit: torch.Tensor) -> float:
-        generator = torch.Generator(device=beats_unit.device).manual_seed(METRIC_SEED)
-        beats = unit_to_sim(beats_unit)
-        return float(best_euler_distance(beats, sampler, sim, METRIC_K, generator).median())
-
-    real_euler = euler_score(real_val)
-    real_hf = float(high_frequency_fraction(real_val).median())
-
-    def metrics(generated: torch.Tensor) -> dict[str, float]:
-        return {
-            "euler_best_median": euler_score(generated),
-            "euler_best_median_real_val": real_euler,
-            "hf_fraction_median": float(high_frequency_fraction(generated).median()),
-            "hf_fraction_median_real_val": real_hf,
-        }
-
-    return metrics
 
 
 def load_class(processed_dir: Path, split: str, beat_type: str) -> np.ndarray:
