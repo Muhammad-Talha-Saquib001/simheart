@@ -1,0 +1,22 @@
+# Data preparation settings. Paths are relative to the repository root.
+
+raw_dir: data/raw/mitdb          # downloaded PhysioNet files (.hea/.dat/.atr)
+processed_dir: data/processed    # beats.npz and splits.json
+tables_dir: outputs/tables       # class-count and excluded-symbol tables
+figures_dir: outputs/figures     # example beat plots
+
+lead: MLII                       # selected by channel name (record 114 has its channels swapped)
+samples_before: 72               # 200 ms before the R-peak at 360 Hz
+samples_after: 144               # 400 ms from the R-peak onward -> 216 samples per beat
+
+seed: 0
+
+split:
+  # Records 201 (DS1) and 202 (DS2) come from the same patient. false reproduces the
+  # standard de Chazal split; true drops 202 from the test set so no patient is shared.
+  strict_patients: false
+  # Validation records, taken from DS1, chosen from outputs/tables/class_counts_by_record.csv
+  # so each rare class appears in both training and validation. Records 208 (372 of the
+  # 414 DS1 F beats) and 209 (383 of the 944 DS1 S beats) stay in training.
+  # Result: validation S 172 / V 560 / F 25; training S 772 / V 3228 / F 389.
+  validation_records: ["118", "205", "223"]
