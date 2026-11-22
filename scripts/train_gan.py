@@ -22,14 +22,47 @@ import torch
 
 from simheart.data.dataset import load_split
 from simheart.data.mitbih import SAMPLING_RATE
-from simheart.data.scaling import minmax_to_sim_range, sim_to_unit
+from simheart.data.scaling import minmax_to_sim_range, sim_to_unit, unit_to_sim
+from simheart.evaluation.metrics import high_frequency_fraction
+from simheart.losses.euler import PAIRINGS, EulerLoss, best_euler_distance
 from simheart.models.gan import NOISE_DIM
+from simheart.simulator import EcgSyn
+from simheart.simulator.fitting import ParamKDE, load_samplers
 from simheart.training.gan import GanTrainConfig, generate, load_generator, train_gan
 from simheart.utils import get_device, load_config, set_seed
 
 ROOT = Path(__file__).resolve().parents[1]
 R_PEAK_INDEX = 72
 TIME_MS = (np.arange(216) - R_PEAK_INDEX) / SAMPLING_RATE * 1000
+METRIC_K = 32  # parameter sets tried per beat for the physiology score
+METRIC_SEED = 123  # same parameter draws at every evaluation, for every run
+
+
+def physiology_metrics(sim: EcgSyn, sampler: ParamKDE, real_val: torch.Tensor):
+    """Physiology and smoothness scores for generated beats, with real validation references.
+
+    * euler_best_median: median over beats of the smallest Euler distance across 32 sampled
+      parameter sets, i.e. how close a beat is to *some* plausible simulator solution.
+    * hf_fraction_median: median share of signal power above 40 Hz (jaggedness).
+    """
+
+    def euler_score(beats_unit: torch.Tensor) -> float:
+        generator = torch.Generator(device=beats_unit.device).manual_seed(METRIC_SEED)
+        beats = unit_to_sim(beats_unit)
+        return float(best_euler_distance(beats, sampler, sim, METRIC_K, generator).median())
+
+    real_euler = euler_score(real_val)
+    real_hf = float(high_frequency_fraction(real_val).median())
+
+    def metrics(generated: torch.Tensor) -> dict[str, float]:
+        return {
+            "euler_best_median": euler_score(generated),
+            "euler_best_median_real_val": real_euler,
+            "hf_fraction_median": float(high_frequency_fraction(generated).median()),
+            "hf_fraction_median_real_val": real_hf,
+        }
+
+    return metrics
 
 
 def load_class(processed_dir: Path, split: str, beat_type: str) -> np.ndarray:
@@ -52,7 +85,7 @@ def smooth(values: np.ndarray, window: int = 20) -> np.ndarray:
 def plot_curves(result, title: str, path: Path) -> None:
     train = {k: np.array([row[k] for row in result.train_log]) for k in result.train_log[0]}
     evals = {k: np.array([row[k] for row in result.eval_log]) for k in result.eval_log[0]}
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4))
+    fig, axes = plt.subplots(1, 4, figsize=(21, 4))
     it = train["iteration"][19:]
 
     axes[0].plot(it, smooth(train["loss_d"]), label="discriminator")
@@ -88,6 +121,22 @@ def plot_curves(result, title: str, path: Path) -> None:
     twin.set_ylabel("diversity ratio (1 = as varied as real)")
     twin.set_ylim(0, 1.5)
     ax.set_title("Validation metrics")
+    lines = ax.get_legend_handles_labels()
+    twin_lines = twin.get_legend_handles_labels()
+    ax.legend(lines[0] + twin_lines[0], lines[1] + twin_lines[1], fontsize=8)
+
+    ax = axes[3]
+    ax.plot(evals["iteration"], evals["euler_best_median"], "o-", color="tab:green", label="Euler")
+    ax.axhline(evals["euler_best_median_real_val"][0], color="tab:green", linestyle="--",
+               label="Euler, real validation")  # fmt: skip
+    ax.set_ylabel("best-of-32 Euler distance (median)")
+    twin = ax.twinx()
+    twin.plot(evals["iteration"], evals["hf_fraction_median"], "s-", color="tab:purple",
+              label="power > 40 Hz")  # fmt: skip
+    twin.axhline(evals["hf_fraction_median_real_val"][0], color="tab:purple", linestyle=":",
+                 label="power > 40 Hz, real")  # fmt: skip
+    twin.set_ylabel("share of power above 40 Hz")
+    ax.set_title("Physiology and smoothness")
     lines = ax.get_legend_handles_labels()
     twin_lines = twin.get_legend_handles_labels()
     ax.legend(lines[0] + twin_lines[0], lines[1] + twin_lines[1], fontsize=8)
@@ -155,26 +204,47 @@ def main() -> None:
     parser.add_argument("--config", default="configs/dcgan.yaml", type=Path)
     parser.add_argument("--beat-type", choices=["S", "V", "F"])
     parser.add_argument("--iterations", type=int)
+    parser.add_argument("--seed", type=int)
+    parser.add_argument("--weight", type=float, help="Euler-loss weight λ (0 = plain DCGAN)")
+    parser.add_argument("--pairing", choices=PAIRINGS)
+    parser.add_argument("--run-name", help="name for the checkpoint and output folders")
     args = parser.parse_args()
 
     config = load_config(ROOT / args.config)
     beat_type = args.beat_type or config["beat_type"]
+    seed = config["seed"] if args.seed is None else args.seed
     training = dict(config["training"], betas=tuple(config["training"]["betas"]))
     if args.iterations:
         training["iterations"] = args.iterations
     train_config = GanTrainConfig(**training)
+    euler = dict(config.get("euler", {"weight": 0.0}))
+    if args.weight is not None:
+        euler["weight"] = args.weight
+    if args.pairing:
+        euler["pairing"] = args.pairing
 
     model = config["model"]
+    run_name = args.run_name or model
     processed_dir = ROOT / config["processed_dir"]
-    checkpoint_dir = ROOT / config["checkpoints_dir"] / model / beat_type
-    run_dir = ROOT / config["runs_dir"] / f"{model}_{beat_type}"
+    checkpoint_dir = ROOT / config["checkpoints_dir"] / run_name / beat_type
+    run_dir = ROOT / config["runs_dir"] / f"{run_name}_{beat_type}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    set_seed(config["seed"])
+    set_seed(seed)
     device = get_device()
     beats_train = load_class(processed_dir, "train", beat_type)
     beats_val = load_class(processed_dir, "validation", beat_type)
-    print(f"{model} {beat_type}: {len(beats_train)} training, {len(beats_val)} validation beats")
+    print(f"{run_name} {beat_type}: {len(beats_train)} training, {len(beats_val)} validation beats")
+
+    sim = EcgSyn().to(device)
+    sampler = load_samplers(ROOT / config["samplers_path"])[beat_type].to(device)
+    metrics = physiology_metrics(sim, sampler, torch.as_tensor(beats_val, device=device))
+    euler_loss = None
+    if euler["weight"] > 0:
+        euler_loss = EulerLoss(
+            sim, sampler, euler["weight"], euler.get("pairing", "random"), euler.get("k", 16)
+        )
+        print(f"Euler loss: weight {euler['weight']}, pairing {euler_loss.pairing}")
 
     began = time.time()
     result = train_gan(
@@ -183,13 +253,18 @@ def main() -> None:
         train_config,
         device,
         checkpoint_dir,
-        run_info={"model": model, "beat_type": beat_type, "seed": config["seed"]},
-    )
+        extra_generator_loss=euler_loss,
+        extra_metrics=metrics,
+        run_info={
+            "model": model, "run_name": run_name, "beat_type": beat_type, "seed": seed,
+            "euler": euler,
+        },
+    )  # fmt: skip
     minutes = (time.time() - began) / 60
 
     write_csv(run_dir / "train_log.csv", result.train_log)
     write_csv(run_dir / "eval_log.csv", result.eval_log)
-    title = f"{model.upper()} {beat_type} ({len(beats_train)} training beats)"
+    title = f"{run_name} {beat_type} ({len(beats_train)} training beats)"
     plot_curves(result, title, run_dir / "curves.png")
     plot_progress(
         result.snapshots, f"{title}: fixed noise during training", run_dir / "progress.png"
@@ -205,7 +280,10 @@ def main() -> None:
     best = next(row for row in result.eval_log if row["iteration"] == result.best_iteration)
     summary = {
         "model": model,
+        "run_name": run_name,
         "beat_type": beat_type,
+        "seed": seed,
+        "euler": euler,
         "training_beats": len(beats_train),
         "validation_beats": len(beats_val),
         "iterations": train_config.iterations,

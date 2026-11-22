@@ -1,6 +1,11 @@
 import torch
 
-from simheart.evaluation import mean_pairwise_distance, mmd_rbf, nearest_distances
+from simheart.evaluation import (
+    high_frequency_fraction,
+    mean_pairwise_distance,
+    mmd_rbf,
+    nearest_distances,
+)
 
 
 def sample(n: int, shift: float = 0.0, seed: int = 0) -> torch.Tensor:
@@ -26,3 +31,11 @@ def test_nearest_distance_is_zero_for_copies():
     distances = nearest_distances(reference[:10], reference)
     assert torch.all(distances == 0)
     assert torch.all(nearest_distances(sample(10, seed=5), reference) > 0)
+
+
+def test_high_frequency_fraction_separates_smooth_from_jagged_beats():
+    time = torch.linspace(0, 0.6, 216)
+    smooth = torch.sin(2 * torch.pi * 3 * time)[None]
+    jagged = smooth + 0.5 * torch.sin(2 * torch.pi * 100 * time)[None]
+    assert high_frequency_fraction(smooth).item() < 0.01
+    assert high_frequency_fraction(jagged).item() > 0.1

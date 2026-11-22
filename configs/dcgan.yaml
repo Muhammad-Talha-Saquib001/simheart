@@ -6,6 +6,7 @@ beat_type: V                     # S, V or F (override with --beat-type)
 processed_dir: data/processed
 checkpoints_dir: checkpoints     # checkpoints/<model>/<beat_type>/{best,last}.pt
 runs_dir: outputs/runs           # outputs/runs/<model>_<beat_type>/ logs and figures
+samplers_path: data/processed/param_samplers.npz   # for the physiology metric (Phase 3)
 
 seed: 0
 

@@ -47,3 +47,16 @@ def mean_pairwise_distance(beats: torch.Tensor) -> float:
 def nearest_distances(queries: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     """Distance from each query beat to its closest beat in the reference set: [N_queries]."""
     return _distances(_flat(queries), _flat(reference)).min(dim=1).values
+
+
+def high_frequency_fraction(
+    beats: torch.Tensor, sampling_rate: float = 360.0, cutoff_hz: float = 40.0
+) -> torch.Tensor:
+    """Share of each beat's signal power above ``cutoff_hz`` (mean removed): [N].
+
+    ECG waves sit mostly below 40 Hz; a higher share means a more jagged, noisier beat.
+    """
+    flat = _flat(beats)
+    power = torch.fft.rfft(flat - flat.mean(dim=1, keepdim=True), dim=1).abs() ** 2
+    freqs = torch.fft.rfftfreq(flat.shape[1], d=1 / sampling_rate).to(flat.device)
+    return power[:, freqs > cutoff_hz].sum(dim=1) / power[:, 1:].sum(dim=1).clamp_min(1e-12)

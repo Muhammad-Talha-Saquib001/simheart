@@ -24,6 +24,7 @@ from simheart.evaluation.metrics import mean_pairwise_distance, mmd_rbf, nearest
 from simheart.models.gan import NOISE_DIM, Discriminator, Generator, init_weights
 
 ExtraLoss = Callable[[torch.Tensor], torch.Tensor]
+ExtraMetrics = Callable[[torch.Tensor], dict[str, float]]
 
 
 @dataclass
@@ -74,14 +75,16 @@ def train_gan(
     device: torch.device,
     checkpoint_dir: Path,
     extra_generator_loss: ExtraLoss | None = None,
+    extra_metrics: ExtraMetrics | None = None,
     run_info: dict | None = None,
 ) -> GanTrainResult:
     """Train a generator on ``beats_train`` ([N, 216], already on the [-1, 1] scale).
 
     Every ``eval_every`` iterations the generator is scored against ``beats_val``
     (validation beats, never trained on): MMD for realism, a diversity ratio, and
-    nearest-training-beat distances for copying. The checkpoint with the lowest MMD is
-    saved as ``best.pt``; the final one as ``last.pt``. ``run_info`` is stored in both.
+    nearest-training-beat distances for copying, plus whatever ``extra_metrics`` returns
+    for the generated beats. The checkpoint with the lowest MMD is saved as ``best.pt``;
+    the final one as ``last.pt``. ``run_info`` is stored in both.
     """
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     real_train = torch.as_tensor(beats_train, dtype=torch.float32, device=device)
@@ -174,6 +177,8 @@ def train_gan(
                 "nn_train_median": float(nearest_distances(fake_eval, real_train).median()),
                 "nn_train_median_real_val": real_nn_median,
             }
+            if extra_metrics is not None:
+                metrics.update(extra_metrics(fake_eval))
             result.eval_log.append(metrics)
             if metrics["mmd"] < result.best_mmd:
                 result.best_mmd, result.best_iteration = metrics["mmd"], iteration
