@@ -224,5 +224,6 @@ __marimo__/
 /data/
 /outputs/
 /checkpoints/
+/exports/
 *.pt
 *.npz
