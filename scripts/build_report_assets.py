@@ -331,8 +331,10 @@ def main() -> None:
         "## 3. Generator fidelity and privacy",
         "",
         "2,000 beats per source, scored against real validation beats (other patients). The "
-        "`real` row is the reference: real training beats for MMD, real validation beats for "
-        "the distance measures (its near-copy rate is 5 % by construction).",
+        "`real` row is the reference: 2,000 real *training* beats for MMD, diversity, "
+        "physiology and smoothness (a perfect copy of the training distribution would score "
+        "these values), and real *validation* beats (other patients) for the distance to the "
+        "nearest training beat.",
         "",
         tables["generator_fidelity"],
         "",
