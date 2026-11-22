@@ -20,6 +20,19 @@ SIM_MAX = 0.042557
 SIM_SPAN = SIM_MAX - SIM_MIN
 
 
+def sim_to_unit(beats):
+    """Map the simulator range [SIM_MIN, SIM_MAX] linearly onto [-1, 1] (NumPy or torch).
+
+    The GANs work on this scale; the Euler loss maps back with ``unit_to_sim``.
+    """
+    return (beats - SIM_MIN) / SIM_SPAN * 2 - 1
+
+
+def unit_to_sim(beats):
+    """Inverse of ``sim_to_unit``: [-1, 1] back to simulator units (NumPy or torch)."""
+    return (beats + 1) / 2 * SIM_SPAN + SIM_MIN
+
+
 def minmax_to_sim_range(beats: np.ndarray, eps: float = 1e-8) -> np.ndarray:
     """Rescale each beat (last axis) so its minimum is SIM_MIN and its maximum is SIM_MAX."""
     low = beats.min(axis=-1, keepdims=True)

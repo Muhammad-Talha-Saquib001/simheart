@@ -1,0 +1,22 @@
+# Plain DCGAN (scripts/train_gan.py). Paths are relative to the repository root.
+
+model: dcgan                     # run name; SimDCGAN adds the Euler loss on top of this
+beat_type: V                     # S, V or F (override with --beat-type)
+
+processed_dir: data/processed
+checkpoints_dir: checkpoints     # checkpoints/<model>/<beat_type>/{best,last}.pt
+runs_dir: outputs/runs           # outputs/runs/<model>_<beat_type>/ logs and figures
+
+seed: 0
+
+training:
+  iterations: 5000               # discriminator updates (override with --iterations)
+  batch_size: 64
+  lr: 0.0002
+  betas: [0.5, 0.999]
+  g_steps_per_d_step: 2          # SimGANs paper: two generator updates per discriminator update
+  log_every: 10
+  eval_every: 250                # MMD / diversity / copy check against validation beats
+  snapshot_every: 500            # fixed-noise samples for the progress figure
+  n_eval: 512
+  n_snapshot: 16
