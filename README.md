@@ -36,17 +36,45 @@ This downloads the MIT-BIH Arrhythmia Database (about 100 MB) into `data/raw/`, 
 
 Settings are in `configs/data.yaml`. `data/` and `outputs/` are not tracked by Git.
 
-## Train and evaluate the generators
+## Reproduce the results
+
+After [setup](#setup) and [data preparation](#prepare-the-data), three commands reproduce everything. All are resumable: rerunning skips finished work.
 
 ```bash
-.venv/bin/python scripts/fit_params.py            # simulator parameters per beat (~4 min, GPU)
-.venv/bin/python scripts/train_all.py             # DCGAN and SimDCGAN, S/V/F, 3 seeds (~2 h, GPU)
-.venv/bin/python scripts/evaluate_generators.py   # scores + synthetic sets in data/synthetic/
-.venv/bin/python scripts/summarize_runs.py        # tables in outputs/tables/
-.venv/bin/python scripts/export_models.py         # model bundle for applications
+.venv/bin/python scripts/fit_params.py          # simulator parameters per beat (~4 min, GPU)
+.venv/bin/python scripts/train_all.py           # DCGAN and SimDCGAN, S/V/F, 3 seeds (~2 h, GPU)
+.venv/bin/python scripts/reproduce_results.py   # everything after training (~2-2.5 h, GPU)
 ```
 
-Settings are in `configs/fitting.yaml`, `configs/dcgan.yaml` and `configs/simdcgan.yaml`. A single run: `.venv/bin/python scripts/train_gan.py --config configs/simdcgan.yaml --beat-type V`.
+`reproduce_results.py` first checks that all 18 training runs finished (`--check` does only that). It then runs, in order:
+1. the final generator evaluation and the synthetic beat sets (`data/synthetic/`);
+2. the generator summaries;
+3. the model bundle for applications;
+4. the API demo;
+5. a validation-only classifier pilot, whose settings are chosen by a fixed rule;
+6. the augmentation experiments;
+7. train-on-synthetic;
+8. their summaries;
+9. the report package.
+
+Decisions that could otherwise be tuned on test data follow pre-set rules that use validation data only (`simheart.reporting`):
+- **Classifier settings:** the learning rate with the best validation AP, then the best epoch count at that rate.
+- **Default UI generator:** the seed with the lowest validation MMD.
+
+Settings live in `configs/` (`data`, `fitting`, `dcgan`, `simdcgan`, `classifier`). To train a single generator: `.venv/bin/python scripts/train_gan.py --config configs/simdcgan.yaml --beat-type V`.
+
+## Results
+
+`outputs/report/` holds `results.md`, the tables (Markdown and CSV) and the key figures:
+- data and splits;
+- simulator fitting quality;
+- generator fidelity and privacy;
+- detection on unseen patients (DS2) for every augmentation setup;
+- train-on-synthetic;
+- the relation to the SimGANs paper;
+- deviations and limitations.
+
+`outputs/` isn't tracked by Git; regenerate it with the commands above.
 
 ## Using SimHeart from Python (for applications)
 
@@ -105,4 +133,14 @@ what_if = api.simulate(fitted["params"], fitted["z0"])
 
 ## Data source
 
-Moody GB, Mark RG. *The impact of the MIT-BIH Arrhythmia Database.* IEEE Eng in Med and Biol 20(3):45-50 (2001). Distributed by [PhysioNet](https://physionet.org/content/mitdb/1.0.0/) (Goldberger et al., 2000).
+Moody GB, Mark RG. *The impact of the MIT-BIH Arrhythmia Database.* IEEE Eng in Med and Biol 20(3):45-50 (2001). Distributed by [PhysioNet](https://physionet.org/content/mitdb/1.0.0/) (Goldberger et al., 2000) under the Open Data Commons Attribution License.
+
+## Citations
+
+- **Method.** Golany T, Freedman D, Radinsky K. *SimGANs: Simulator-Based Generative Adversarial Networks for ECG Synthesis to Improve Deep ECG Classification.* ICML, PMLR 119:3597-3606 (2020).
+- **Heart model.** McSharry PE, Clifford GD, Tarassenko L, Smith LA. *A dynamical model for generating synthetic electrocardiogram signals.* IEEE Trans Biomed Eng 50(3):289-294 (2003).
+- **Patient split.** de Chazal P, O'Dwyer M, Reilly RB. *Automatic classification of heartbeats using ECG morphology and heartbeat interval features.* IEEE Trans Biomed Eng 51(7):1196-1206 (2004).
+- **Classifier.** Kachuee M, Fazeli S, Sarrafzadeh M. *ECG Heartbeat Classification: A Deep Transferable Representation.* IEEE ICHI, 443-444 (2018).
+- **DCGAN.** Radford A, Metz L, Chintala S. *Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks.* arXiv:1511.06434 (2015).
+- **Simulator validation.** Makowski D et al. *NeuroKit2: A Python toolbox for neurophysiological signal processing.* Behav Res Methods 53:1689-1696 (2021).
+- **Reference code.** The SimGANs authors' code ([DreamStudioAI/sim_gan](https://github.com/DreamStudioAI/sim_gan)) was read as a reference only. SimHeart is an independent implementation; the constants and layer settings taken from it are cited where they are used.

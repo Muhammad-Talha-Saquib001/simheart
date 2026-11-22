@@ -6,14 +6,16 @@ Run from the repository root:
 
 Trains the base classifier (real training beats only) for up to ``pilot.max_epochs`` at
 each learning rate and records the validation average precision after every epoch. The
-test set is not touched. Copy the chosen epochs and learning rate into
-configs/classifier.yaml (``training``) before running scripts/run_augmentation.py.
+test set is not touched. The learning rate and epoch count are then chosen by a fixed
+rule (simheart.reporting.choose_pilot_settings) and written to pilot_choice.json, which
+scripts/run_augmentation.py reads with --settings.
 
 Reads:  configs/classifier.yaml, data/processed/
-Writes: outputs/experiments/pilot.csv, outputs/experiments/pilot.png
+Writes: outputs/experiments/{pilot.csv, pilot.png, pilot_choice.json}
 """
 
 import csv
+import json
 import time
 from pathlib import Path
 
@@ -22,6 +24,7 @@ import matplotlib.pyplot as plt
 from simheart.classification.datasets import real_binary
 from simheart.classification.metrics import average_precision
 from simheart.classification.train import ClassifierConfig, predict_scores, train_classifier
+from simheart.reporting import choose_pilot_settings
 from simheart.utils import get_device, load_config, set_seed
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,7 +96,12 @@ def main() -> None:
         ax.legend()
     fig.tight_layout()
     fig.savefig(out / "pilot.png", dpi=110)
-    print(f"Saved {out / 'pilot.csv'}")
+    choice = choose_pilot_settings(rows)
+    (out / "pilot_choice.json").write_text(json.dumps(choice, indent=2), encoding="utf-8")
+    print(
+        f"Chosen: lr {choice['lr']}, {choice['base_epochs']} base epochs, "
+        f"{choice['finetune_epochs']} fine-tune epochs ({out / 'pilot_choice.json'})"
+    )
 
 
 if __name__ == "__main__":

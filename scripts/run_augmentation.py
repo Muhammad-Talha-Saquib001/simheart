@@ -68,6 +68,7 @@ def main() -> None:
     parser.add_argument("--tstr", action="store_true", help="run train-on-synthetic instead")
     parser.add_argument("--classes", nargs="+")
     parser.add_argument("--seeds", nargs="+", type=int)
+    parser.add_argument("--settings", type=Path, help="pilot_choice.json (overrides training)")
     args = parser.parse_args()
 
     config = load_config(ROOT / "configs" / "classifier.yaml")
@@ -79,7 +80,12 @@ def main() -> None:
     done = set()
     if results_path.exists():
         done = {json.loads(line)["key"] for line in results_path.read_text().splitlines()}
-    settings = ClassifierConfig(**config["training"])
+    training = dict(config["training"])
+    if args.settings:
+        choice = json.loads(args.settings.read_text(encoding="utf-8"))
+        training |= {k: choice[k] for k in ("lr", "base_epochs", "finetune_epochs")}
+    settings = ClassifierConfig(**training)
+    print(f"Settings: {settings}", flush=True)
     device = get_device()
 
     def record(row: dict, scores: dict) -> None:
