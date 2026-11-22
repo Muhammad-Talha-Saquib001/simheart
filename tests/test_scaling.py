@@ -1,6 +1,6 @@
 import numpy as np
 
-from simheart.data.scaling import SIM_MIN, SIM_SPAN, minmax_to_sim_range
+from simheart.data.scaling import SIM_MAX, SIM_MIN, minmax_to_sim_range
 
 
 def test_each_beat_is_scaled_into_the_simulator_range():
@@ -11,7 +11,7 @@ def test_each_beat_is_scaled_into_the_simulator_range():
 
     assert scaled.dtype == np.float32
     np.testing.assert_allclose(scaled.min(axis=1), SIM_MIN, atol=1e-7)
-    np.testing.assert_allclose(scaled.max(axis=1), SIM_MIN + SIM_SPAN, atol=1e-7)
+    np.testing.assert_allclose(scaled.max(axis=1), SIM_MAX, atol=1e-7)
 
 
 def test_flat_beat_does_not_divide_by_zero():
