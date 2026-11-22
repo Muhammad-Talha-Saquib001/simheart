@@ -1,0 +1,29 @@
+# Fitting ECGSYN parameters to real beats (scripts/fit_params.py).
+# Paths are relative to the repository root.
+
+processed_dir: data/processed
+tables_dir: outputs/tables
+figures_dir: outputs/figures
+
+split: train               # samplers use training beats only
+classes: [S, V, F]         # the classes SimDCGAN generates
+
+steps: 1500                # Adam steps per fit (cosine learning-rate decay)
+lr: 0.02
+
+b_min: 0.02                # smallest allowed wave width, radians (about 1 degree)
+theta_r_max_deg: 30        # the R wave stays within +/- 30 degrees of the R-peak
+
+# S beats come early, so the next beat's R wave enters the end of the window.
+# The last part of the window is left out of the fit for these classes.
+ignore_last_ms:
+  S: 50
+
+min_r2: 0.8                # fits below this are left out of the sampler (and reported)
+
+# Parameter sampler (kernel density estimate): a fitted parameter set plus Gaussian jitter
+# of this fraction of each parameter's spread. 0.02 keeps ~90 % of sampled beats within
+# the real amplitude range; the paper's diagonal Gaussian kept only 6-17 %.
+jitter: 0.02
+
+seed: 0
