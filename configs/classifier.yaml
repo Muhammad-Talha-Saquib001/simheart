@@ -1,0 +1,25 @@
+# Classifier and augmentation experiments (scripts/pilot_classifier.py,
+# scripts/run_augmentation.py). Paths are relative to the repository root.
+
+processed_dir: data/processed
+synthetic_dir: data/synthetic
+out_dir: outputs/experiments
+
+classes: [S, V, F]            # one one-vs-rest classifier per rare class
+seeds: [0, 1, 2]              # classifier seed s uses the synthetic sets of generator seed s
+amounts: [0.5, 1.0, 2.0]      # added beats, as a multiple of the class's real training beats
+setups: [oversample, simulator, dcgan, simdcgan]   # plus the real-only control
+
+training:
+  base_epochs: 20             # set from the pilot (validation only)
+  finetune_epochs: 5          # every setup, including the control
+  lr: 0.001
+  batch_size: 256
+
+tstr_amount: 2.0              # train-on-synthetic: real negatives + this many synthetic positives
+
+pilot:                        # validation-only tuning of the real-only baseline
+  classes: [V, S]             # F has only 25 validation beats
+  seed: 0
+  max_epochs: 30
+  lrs: [0.001, 0.0003]
