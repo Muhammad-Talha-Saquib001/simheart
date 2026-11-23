@@ -5,7 +5,7 @@ Run from the repository root, at the end of scripts/reproduce_results.py:
     .venv/bin/python scripts/build_report_assets.py
 
 All numbers come from the files the earlier steps wrote; nothing is retrained. Places that
-need a human reading of the numbers are marked "Interpretation (to be written)".
+need a human reading of the numbers come from INTERPRETATION, written after reviewing them.
 
 Reads:  outputs/tables/*.csv, outputs/experiments/{results.jsonl, pilot_choice.json},
         exports/simheart-models/manifest.json, outputs/figures/*.png
@@ -27,7 +27,84 @@ REPORT = ROOT / "outputs" / "report"
 CLASSES = ["S", "V", "F"]
 METHODS = ["real", "simulator", "dcgan", "simdcgan"]
 SETUPS = ["real", "oversample", "simulator", "dcgan", "simdcgan"]
-TODO = "*Interpretation (to be written after reviewing the numbers).*"
+
+# Runs that failed during training, found in the final generator evaluation. The main tables
+# keep them (all pre-registered seeds are reported); a clearly labelled supplementary table
+# repeats the affected rows without them. Key: (class, method, seed).
+FAILED_RUNS = {
+    ("V", "simdcgan", 2): "broke down by iteration 500 and never recovered: near-identical, "
+    "noise-like beats (diversity ratio 0.008, 90 % of power above 40 Hz, MMD 0.70)",
+}
+
+
+# Reading of the numbers, written by hand after the full run of 23 November 2026. If the
+# experiments are rerun, check these statements against the new tables.
+INTERPRETATION = {
+    "generators": (
+        "**Interpretation.** All generators are close to the real-data reference on realism "
+        "and variety; differences between them are small next to the gap between training and "
+        "validation patients. On the small classes the Euler loss does what it is meant to "
+        "do: SimDCGAN beats are smoother than DCGAN beats in every seed (power above 40 Hz: "
+        "S 0.013 vs 0.015, F 0.004 vs 0.010, 3/3 seeds each) and obey the heart model better "
+        "(Euler score F 7.4 vs 18.0, 3/3 seeds; S 14.6 vs 15.7, 2/3). The cost is slightly "
+        "higher MMD on S and F. The V means are dominated by one failed run (SimDCGAN seed 2, "
+        "see 4b); the other two V SimDCGAN seeds have the lowest MMD of any V generator. "
+        "**Privacy:** no source produces near-copies of training beats (near-copy rate 0 % "
+        "for both GANs, at most 0.4 % for the simulator). Generated beats lie closer to the "
+        "training beats (median distance 1.0-1.2) than other patients' real beats do "
+        "(1.6-2.7), which is expected from a model of those patients and is not memorisation."
+    ),
+    "augmentation": (
+        "**Interpretation.** *V (the only class the classifier can detect on new patients):* "
+        "the control already reaches AP 0.90. SimDCGAN is the only setup whose mean AP is "
+        "above the control at every amount, and it beats DCGAN at the same amount in all 9 "
+        "paired comparisons (3 seeds x 3 amounts). Its gain over the control is small "
+        "(+0.005 to +0.013 AP) and within the seed spread, so the clearer effect is that "
+        "DCGAN beats (-0.02 to -0.03) and simple oversampling (-0.01 to -0.04) *hurt*, "
+        "while SimDCGAN beats do not. At the paper's operating point (recall 0.91), "
+        "precision rises from 0.50 (control) to "
+        "0.61-0.65 with SimDCGAN, against 0.41-0.49 with DCGAN, but with large spread "
+        "(± 0.06-0.16). The 9 paired wins come from only 3 independent seeds (3/3 per amount), "
+        "so they are consistent evidence, not a significance test. "
+        "*S and F:* every setup stays at or near chance (S prevalence in DS2 3.7 %, AP about "
+        "0.04-0.08; F prevalence 0.8 %, AP 0.006-0.007). Augmentation cannot fix this. S "
+        "beats are recognised mainly by their early timing, which a single-beat classifier "
+        "cannot see; F training beats come 90 % from one patient (record 208: 372 of 414) and "
+        "F test beats 93 % from another (record 213: 362 of 388), so no beat-shape model "
+        "learned from 208 transfers. Removing record 202 changes nothing."
+    ),
+    "sensitivity": (
+        "**Interpretation.** Without the failed run the picture for V is the same: SimDCGAN "
+        "has the lowest MMD of all V sources (0.115 vs 0.124 for DCGAN) and still beats "
+        "DCGAN on every remaining paired seed (2/2 at each amount). Even the failed run's "
+        "augmentation did not hurt (seed 2 AP 0.91-0.92 vs control 0.89): its noise-like "
+        "beats are easy to tell apart from real beats, so the classifier effectively ignores "
+        "them. The failure shows up clearly only when the synthetic beats are all the "
+        "classifier sees (section 5)."
+    ),
+    "tstr": (
+        "**Interpretation.** Trained on synthetic V beats alone (real non-V beats), the "
+        "classifier still finds real V beats in new patients: the two working SimDCGAN seeds "
+        "give the best results (AP 0.91 and 0.93, against 0.90, 0.87 and 0.73 for DCGAN and "
+        "0.52-0.88 for the simulator). The failed seed gives AP 0.08, which is why the "
+        "SimDCGAN mean is 0.64 ± 0.40. So, when training succeeds, SimDCGAN beats carry the "
+        "most useful V information, but SimDCGAN training is less reliable than DCGAN "
+        "training (1 failure in 9 SimDCGAN runs, 0 in 9 DCGAN runs). S and F are at chance, "
+        "as in section 4."
+    ),
+    "paper": (
+        "**Interpretation.** The ordering on V matches the paper (SimDCGAN above DCGAN: 0.61 "
+        "vs 0.41 here, 0.84 vs 0.72 in the paper). Our absolute numbers are lower throughout "
+        "and S and F are at chance, because the paper's evaluation includes the training "
+        "patients (beats of the same person are very alike), while ours uses only unseen "
+        "patients, the clinically relevant and much harder setting."
+    ),
+}
+
+
+def is_failed(beat_type: str, method: str, seed) -> bool:
+    return seed not in ("", None) and (beat_type, method, int(seed)) in FAILED_RUNS
+
 
 # SimGANs paper, Table 1: precision at fixed recall, evaluated on the whole MIT-BIH database.
 PAPER_TABLE_1 = {
@@ -70,8 +147,10 @@ def fmt(mean: float, std: float, digits: int = 3) -> str:
     return f"{mean:.{digits}f} ± {std:.{digits}f}"
 
 
-def generator_rows() -> list[dict]:
+def generator_rows(drop_failed: bool = False) -> list[dict]:
     per_seed = read_csv(TABLES / "generator_eval_per_seed.csv")
+    if drop_failed:
+        per_seed = [r for r in per_seed if not is_failed(r["class"], r["method"], r["seed"])]
     groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for row in per_seed:
         groups[(row["class"], row["method"])].append(row)
@@ -223,6 +302,52 @@ def main() -> None:
         ],
     )
     win_rows = paired_wins(groups)
+
+    # Supplementary (not pre-registered): the affected classes without the failed runs.
+    failed_classes = sorted({c for c, _, _ in FAILED_RUNS}, key=CLASSES.index)
+    kept = [r for r in results if not is_failed(r["class"], r["setup"], r["seed"])]
+    sens_gen = [r for r in generator_rows(drop_failed=True) if r["class"] in failed_classes]
+    sens_aug, sens_groups = augmentation_rows(kept)
+    sens_aug = [r for r in sens_aug if r["class"] in failed_classes]
+    sens_wins = [r for r in paired_wins(sens_groups) if r["class"] in failed_classes]
+    tables["sensitivity_generator_fidelity"] = markdown_table(
+        sens_gen,
+        [
+            ("class", "Class"),
+            ("method", "Source"),
+            ("n", "Seeds"),
+            ("mmd", "MMD to validation ↓"),
+            ("diversity_ratio", "Diversity (1 = real)"),
+            ("euler_best_median", "Physiology (Euler) ↓"),
+            ("hf_fraction_median", "Power > 40 Hz"),
+        ],
+    )
+    tables["sensitivity_augmentation"] = markdown_table(
+        sens_aug,
+        [
+            ("class", "Class"),
+            ("setup", "Setup"),
+            ("amount", "Added"),
+            ("n", "Seeds"),
+            ("ap", "Test AP"),
+            ("gain", "AP gain vs control"),
+            ("p_at_r", "Precision @ paper recall"),
+            ("ap_strict", "Test AP (no record 202)"),
+        ],
+    )
+    tables["sensitivity_simdcgan_vs_dcgan"] = markdown_table(
+        sens_wins,
+        [
+            ("class", "Class"),
+            ("amount", "Added"),
+            ("dcgan", "DCGAN AP"),
+            ("simdcgan", "SimDCGAN AP"),
+            ("wins", "Seeds where SimDCGAN better"),
+        ],
+    )
+    failed_text = "; ".join(
+        f"{m} {c} seed {seed} {why}" for (c, m, seed), why in FAILED_RUNS.items()
+    )
     tables["augmentation_simdcgan_vs_dcgan"] = markdown_table(
         win_rows,
         [
@@ -342,7 +467,7 @@ def main() -> None:
         "",
         tables["generator_simdcgan_vs_dcgan"],
         "",
-        TODO,
+        INTERPRETATION["generators"],
         "",
         "## 4. Augmentation: detection on unseen patients (DS2)",
         "",
@@ -354,13 +479,36 @@ def main() -> None:
         "",
         tables["augmentation_simdcgan_vs_dcgan"],
         "",
-        TODO,
+        INTERPRETATION["augmentation"],
+        "",
+        "## 4b. Supplementary: without the failed training run (not pre-registered)",
+        "",
+        f"One of the 18 generator runs failed during training: {failed_text}. The main "
+        "tables above keep it, because all three seeds were fixed in advance and a failure "
+        "is itself a result. The tables below repeat only the affected class without it, "
+        "with the paired comparisons restricted to the remaining seeds. They answer 'how do "
+        "the methods compare when training succeeds?' and are not the headline result.",
+        "",
+        "Generator fidelity:",
+        "",
+        tables["sensitivity_generator_fidelity"],
+        "",
+        "Augmentation on DS2 (the failed run's synthetic beats were used only by its own "
+        "seed, so that seed is dropped for SimDCGAN):",
+        "",
+        tables["sensitivity_augmentation"],
+        "",
+        "SimDCGAN vs DCGAN at the same amount, remaining seeds:",
+        "",
+        tables["sensitivity_simdcgan_vs_dcgan"],
+        "",
+        INTERPRETATION["sensitivity"],
         "",
         "## 5. Train on synthetic, test on real",
         "",
         tables["tstr"] or "*Not run.*",
         "",
-        TODO,
+        INTERPRETATION["tstr"],
         "",
         "## 6. Relation to the SimGANs paper",
         "",
@@ -369,6 +517,8 @@ def main() -> None:
         "comparable.",
         "",
         tables["paper_comparison"],
+        "",
+        INTERPRETATION["paper"],
         "",
         "## 7. Deviations from the paper",
         "",
@@ -381,6 +531,14 @@ def main() -> None:
         "GANs; best-checkpoint selection keeps usable generators.",
         "- Single lead (MLII), 216-sample windows; S windows contain part of the next beat.",
         "- Three seeds: differences are reported with their spread, without significance tests.",
+        "- The validation set has 3 patients; one (record 118, right bundle branch block, "
+        "wide normal beats) dominates pooled validation AP, which is why the pilot rule chose "
+        "1 base epoch.",
+        "- The classifier sees one beat at a time, without RR-interval timing, so S beats "
+        "(recognised clinically by their early timing) are detected at near-chance level; F "
+        "training and test beats come from different single patients (records 208 and 213).",
+        "- One of the 18 GAN runs (SimDCGAN, V, seed 2) failed at the start of training; it "
+        "is kept in the main results and removed only in the labelled supplementary tables.",
         "- The standard split shares one patient between training and test (201/202); "
         "results without record 202 are reported alongside.",
         "",

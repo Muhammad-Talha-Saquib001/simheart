@@ -10,6 +10,18 @@ from torch import nn
 from simheart.classification.model import KachueeResNet
 
 
+def use_tuned_cudnn() -> None:
+    """Let cuDNN time its (deterministic) convolution kernels and keep the fastest.
+
+    For this small 1-D network, cuDNN's untuned default on an RTX 2060 (torch 2.15, cuDNN
+    9.26) picks a kernel that needs 8.7 GB and 3.7 s per batch of 256; tuned, a batch takes
+    about 7 ms. ``set_seed`` keeps ``cudnn.deterministic = True``, so only deterministic
+    kernels are considered; which one wins can vary between machines, so results can differ
+    in the last decimals across hardware.
+    """
+    torch.backends.cudnn.benchmark = True
+
+
 @dataclass
 class ClassifierConfig:
     base_epochs: int = 20
@@ -34,6 +46,7 @@ def train_classifier(
     the CPU) and the mean loss per epoch. ``on_epoch(epoch, model)`` is called after each
     epoch (the pilot uses it to score validation beats).
     """
+    use_tuned_cudnn()
     generator = torch.Generator().manual_seed(seed)
     torch.manual_seed(seed)
     model = KachueeResNet().to(device)
@@ -71,6 +84,7 @@ def predict_scores(
     batch_size: int = 4096,
 ) -> np.ndarray:
     """Probability that each beat belongs to the positive class: [N]."""
+    use_tuned_cudnn()
     if isinstance(model_or_state, dict):
         model = KachueeResNet().to(device)
         model.load_state_dict(model_or_state)
