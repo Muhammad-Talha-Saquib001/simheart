@@ -4,6 +4,7 @@ Run from the repository root, after scripts/evaluate_generators.py:
 
     .venv/bin/python scripts/run_augmentation.py
     .venv/bin/python scripts/run_augmentation.py --tstr
+    .venv/bin/python scripts/run_augmentation.py --whole-database   # the paper's protocol
 
 For every class and seed: train a base classifier on real training beats, then fine-tune a
 copy of it for the same number of epochs with each setup (real-only control, oversampling,
@@ -11,8 +12,14 @@ simulator, DCGAN, SimDCGAN) and amount. Every model is scored on validation (to 
 decision threshold) and on DS2 test beats, with and without record 202. Finished models are
 recorded in results.jsonl and skipped on the next run.
 
+With --whole-database (Phase 11), the same augmentation runs are repeated into
+outputs/experiments/paper_protocol/ and every model is also scored on the whole database
+(train + validation + test records), as the SimGANs paper's Table 1 does, and on each part:
+seen (training patients), validation and unseen (DS2) patients.
+
 Reads:  configs/classifier.yaml, data/processed/, data/synthetic/
 Writes: outputs/experiments/{results.jsonl, base/, scores/}
+        (with --whole-database: outputs/experiments/paper_protocol/, same layout)
 """
 
 import argparse
@@ -28,6 +35,7 @@ from simheart.classification.datasets import (
     real_binary,
     strict_mask,
     synthetic_positive_set,
+    whole_database,
 )
 from simheart.classification.metrics import (
     PAPER_RECALL,
@@ -60,7 +68,20 @@ def evaluate(state: dict, beat_type: str, sets: dict, device: torch.device) -> t
             f"recall_test{suffix}": at["recall"],
             f"f1_test{suffix}": at["f1"],
         }
-    return result, {"test": test_scores, "val": val_scores}
+    scores = {"test": test_scores, "val": val_scores}
+    if "x_whole" in sets:  # the paper's protocol: every beat, and each split's part
+        whole_scores = predict_scores(state, sets["x_whole"], device)
+        split = sets["split"]
+        parts = [("_whole", slice(None)), ("_seen", split == "train")]
+        parts += [("_validation", split == "validation"), ("_unseen", split == "test")]
+        for suffix, mask in parts:
+            y, s = sets["y_whole"][mask], whole_scores[mask]
+            result |= {
+                f"ap{suffix}": average_precision(y, s),
+                f"p_at_paper_recall{suffix}": precision_at_recall(y, s, recall),
+            }
+        scores["whole"] = whole_scores
+    return result, scores
 
 
 def main() -> None:
@@ -69,11 +90,18 @@ def main() -> None:
     parser.add_argument("--classes", nargs="+")
     parser.add_argument("--seeds", nargs="+", type=int)
     parser.add_argument("--settings", type=Path, help="pilot_choice.json (overrides training)")
+    parser.add_argument(
+        "--whole-database", action="store_true", help="the paper's protocol (paper_protocol/)"
+    )
     args = parser.parse_args()
+    if args.tstr and args.whole_database:
+        parser.error("--whole-database repeats the augmentation runs only")
 
     config = load_config(ROOT / "configs" / "classifier.yaml")
     processed, synthetic = ROOT / config["processed_dir"], ROOT / config["synthetic_dir"]
     out = ROOT / config["out_dir"]
+    if args.whole_database:
+        out = out / "paper_protocol"
     (out / "base").mkdir(parents=True, exist_ok=True)
     (out / "scores").mkdir(parents=True, exist_ok=True)
     results_path = out / "results.jsonl"
@@ -108,6 +136,9 @@ def main() -> None:
             "y_test": y_test,
             "strict": strict_mask(records),
         }
+        if args.whole_database:
+            x_whole, y_whole, _, split = whole_database(processed, beat_type)
+            sets |= {"x_whole": x_whole, "y_whole": y_whole, "split": split}
         for seed in args.seeds or config["seeds"]:
             if args.tstr:
                 jobs = [("tstr", method, config["tstr_amount"]) for method in METHODS]

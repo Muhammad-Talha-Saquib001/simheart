@@ -18,7 +18,7 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 
-from simheart.reporting import markdown_table, mean_std
+from simheart.reporting import PAPER_TABLE_1, markdown_table, mean_std
 
 ROOT = Path(__file__).resolve().parents[1]
 TABLES, FIGURES = ROOT / "outputs" / "tables", ROOT / "outputs" / "figures"
@@ -113,11 +113,41 @@ INTERPRETATION = {
         "as in section 4."
     ),
     "paper": (
-        "**Interpretation.** The ordering on V matches the paper (SimDCGAN above DCGAN: 0.61 "
-        "vs 0.41 here, 0.84 vs 0.72 in the paper). Our absolute numbers are lower throughout "
-        "and S and F are at chance, because the paper's evaluation includes the training "
-        "patients (beats of the same person are very alike), while ours uses only unseen "
-        "patients, the clinically relevant and much harder setting."
+        "**Interpretation.** *Primary question (V, 1x, the paper's protocol):* SimDCGAN is "
+        "above DCGAN on the whole database (0.63 ± 0.04 vs 0.59 ± 0.02), so the paper's "
+        "ordering reproduces, but the gap is smaller (0.04 vs the paper's 0.12) and both "
+        "values are below the paper's (0.72 / 0.84). The split by patient group explains why "
+        "the protocol matters so much: on the patients the classifier was trained on, "
+        "precision is 0.97-0.98 for V and F and 0.82-0.94 for S, *above* the paper's numbers, "
+        "and every setup looks alike (a ceiling). On patients it never trained on, precision "
+        "drops to 0.41-0.65 (V, DS2), 0.12-0.17 (V, validation, dominated by record 118) and "
+        "near chance for S and F. A whole-database number is therefore mostly a statement "
+        "about the *mix* of seen and unseen beats, not about the generators. "
+        "*S and F:* even under the paper's protocol we are far below its values (S 0.05-0.09 "
+        "vs 0.58-0.80; F 0.01-0.02 vs 0.20-0.40). About 72 % of all S beats and half of all F "
+        "beats come from patients outside our training set. Reaching the paper's recall "
+        "level means finding some of those, and on them we are at chance, so precision "
+        "collapses. "
+        "The paper's S and F numbers lie between our seen and unseen results, which would "
+        "fit an evaluation in which most beats come from patients seen during training (for "
+        "example a beat-level split); the paper doesn't give enough detail to check this, so "
+        "it is a hypothesis, not a finding. What we can say: with a patient-level training "
+        "set, the paper's S and F results do not reproduce, and its V ordering does, with a "
+        "smaller margin."
+    ),
+    "reproducibility": (
+        "**Why the reproducibility rule was exceeded (investigated before writing up).** "
+        "All 9 base models and all V and F models were reproduced exactly; the 12 differing "
+        "models are all S models at 2x. Repeating one of them (S, SimDCGAN, 2x, seed 1) in "
+        "five fresh processes gave AP 0.0402 four times and 0.0497 once (original run: "
+        "0.0342); inside one process it never varies. The cause is cuDNN's kernel tuning "
+        "(decision log §13): it times its kernels in each new process, and timing noise "
+        "occasionally selects a different, equally deterministic kernel whose rounding "
+        "differs; at chance level (S) such tiny differences reorder the few positives. With "
+        "cuDNN switched off the run is fully repeatable but about 25 times slower. The "
+        "variation (up to about 0.016 AP, on S only) is far smaller than the patient-level "
+        "intervals for S (section 4c) and changes no conclusion; numbers in this report can "
+        "differ in that range when the pipeline is rerun."
     ),
 }
 
@@ -125,13 +155,6 @@ INTERPRETATION = {
 def is_failed(beat_type: str, method: str, seed) -> bool:
     return seed not in ("", None) and (beat_type, method, int(seed)) in FAILED_RUNS
 
-
-# SimGANs paper, Table 1: precision at fixed recall, evaluated on the whole MIT-BIH database.
-PAPER_TABLE_1 = {
-    "S": {"recall": 0.41, "dcgan": 0.58, "simdcgan": 0.80},
-    "V": {"recall": 0.91, "dcgan": 0.72, "simdcgan": 0.84},
-    "F": {"recall": 0.60, "dcgan": 0.20, "simdcgan": 0.40},
-}
 
 DEVIATIONS = [
     "Python 3.14 in a project-local virtual environment (proposal: 3.11).",
@@ -530,6 +553,47 @@ def main() -> None:
                     "ours": f"{dc_mean:.2f} / {sd_mean:.2f}",
                 }
             )
+    protocol = read_csv(TABLES / "paper_protocol.csv")
+    pp = lambda r, part: f"{float(r[part]):.2f} ± {float(r[part + '_sd']):.2f}"  # noqa: E731
+    tables["paper_protocol"] = markdown_table(
+        [
+            {
+                "class": r["class"],
+                "setup": r["setup"],
+                "amount": "—" if r["setup"] == "real" else f"{float(r['amount'])}×",
+                "paper": r["paper_p_at_paper_recall"] or "—",
+                "whole": pp(r, "p_at_paper_recall_whole"),
+                "seen": pp(r, "p_at_paper_recall_seen"),
+                "validation": pp(r, "p_at_paper_recall_validation"),
+                "unseen": pp(r, "p_at_paper_recall_unseen"),
+            }
+            for r in protocol
+            if r["setup"] in ("real", "dcgan", "simdcgan")
+        ],
+        [
+            ("class", "Class"),
+            ("setup", "Setup"),
+            ("amount", "Added"),
+            ("paper", "Paper (whole DB)"),
+            ("whole", "Ours: whole DB"),
+            ("seen", "Training patients"),
+            ("validation", "Validation patients"),
+            ("unseen", "DS2 (unseen)"),
+        ],
+    )
+    repro_path = TABLES / "paper_protocol_reproducibility.json"
+    repro_text = ""
+    if repro_path.exists():
+        repro = json.loads(repro_path.read_text())
+        repro_text = (
+            f"Reproducibility check: repeating the {repro['models_compared']} fine-tunings "
+            f"reproduced the original DS2 AP exactly for {repro['identical']} models; the "
+            f"largest difference is {repro['max_abs_diff']:.4f} (rule fixed in advance: at "
+            f"most {repro['tolerance']}; "
+            f"{'passed' if repro['passed'] else 'exceeded, see below'})."
+        )
+        if not repro["passed"]:
+            repro_text += "\n\n" + INTERPRETATION["reproducibility"]
     tables["paper_comparison"] = markdown_table(
         paper_rows,
         [
@@ -665,9 +729,18 @@ def main() -> None:
         "",
         "## 6. Relation to the SimGANs paper",
         "",
-        "The paper's Table 1 is evaluated on the **whole** MIT-BIH database (training patients "
-        "included); ours is DS2 only (unseen patients), so the numbers are not directly "
-        "comparable.",
+        "The paper's Table 1 trains on DS1 and evaluates on the **whole** MIT-BIH database, "
+        "training patients included. To compare directly, the augmentation fine-tunings were "
+        "repeated and scored the same way (Phase 11): on the whole database (all 44 records, "
+        "100,685 beats), and on each part of it: the training patients (seen), the 3 "
+        "validation patients and DS2 (unseen). Precision at the paper's recall, mean ± "
+        "spread over 3 seeds:",
+        "",
+        tables["paper_protocol"] or "*Not run (run_augmentation.py --whole-database).*",
+        "",
+        repro_text,
+        "",
+        "Our DS2-only result next to the paper (from section 4, 1×):",
         "",
         tables["paper_comparison"],
         "",
@@ -708,6 +781,7 @@ def main() -> None:
         "generators_*.png",
         "augmentation_*.png",
         "bootstrap_*.png",
+        "paper_protocol.png",
         "api_demo.png",
     ]:
         for path in FIGURES.glob(pattern):

@@ -56,7 +56,9 @@ After [setup](#setup) and [data preparation](#prepare-the-data), three commands 
 7. train-on-synthetic;
 8. their summaries;
 9. confidence intervals over test patients (a patient-level bootstrap of the saved test scores; no retraining);
-10. the report package.
+10. the SimGANs paper's evaluation protocol (the same fine-tuning, scored on the whole database, split into training, validation and test patients);
+11. its summary and a reproducibility check;
+12. the report package.
 
 Decisions that could otherwise be tuned on test data follow pre-set rules that use validation data only (`simheart.reporting`):
 - **Classifier settings:** the learning rate with the best validation AP, then the best epoch count at that rate.

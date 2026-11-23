@@ -13,6 +13,13 @@ from pathlib import Path
 
 import numpy as np
 
+# SimGANs paper, Table 1: precision at fixed recall, evaluated on the whole MIT-BIH database.
+PAPER_TABLE_1 = {
+    "S": {"recall": 0.41, "dcgan": 0.58, "simdcgan": 0.80},
+    "V": {"recall": 0.91, "dcgan": 0.72, "simdcgan": 0.84},
+    "F": {"recall": 0.60, "dcgan": 0.20, "simdcgan": 0.40},
+}
+
 FINETUNE_EPOCHS = 5
 
 

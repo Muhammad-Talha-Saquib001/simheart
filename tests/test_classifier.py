@@ -10,6 +10,7 @@ from simheart.classification.datasets import (
     real_binary,
     strict_mask,
     synthetic_positive_set,
+    whole_database,
 )
 from simheart.classification.metrics import (
     average_precision,
@@ -117,6 +118,18 @@ def test_strict_mask_drops_record_202(dirs):
     _, _, records = real_binary(processed, "test", "V")
     mask = strict_mask(records)
     assert not np.any(records[mask] == "202") and mask.sum() == 10
+
+
+def test_whole_database_is_every_split_once_and_names_each_beats_split(dirs):
+    processed, _, _ = dirs
+    x, y, records, split = whole_database(processed, "V")
+    parts = [real_binary(processed, split, "V") for split in ("train", "validation", "test")]
+    assert len(x) == sum(len(p[0]) for p in parts) == 70
+    np.testing.assert_array_equal(x, np.concatenate([p[0] for p in parts]))
+    np.testing.assert_array_equal(y, np.concatenate([p[1] for p in parts]))
+    assert set(records[split == "train"]) == {"101", "106"}
+    assert set(records[split == "validation"]) == {"118"}
+    assert set(records[split == "test"]) == {"100", "202"}
 
 
 def test_metrics_match_hand_computed_values():

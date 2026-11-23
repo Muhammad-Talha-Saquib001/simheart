@@ -16,10 +16,12 @@ Steps (each a separate process; the script stops at the first failure):
     7. run_augmentation.py --tstr   train-on-synthetic (resumable)
     8. summarize_augmentation.py tables and figures
     9. bootstrap_results.py      confidence intervals over test patients (CPU, no retraining)
-   10. build_report_assets.py    outputs/report/ (tables, figures, results.md)
+   10. run_augmentation.py --whole-database   the paper's protocol (resumable)
+   11. summarize_paper_protocol.py            its tables, figure and reproducibility check
+   12. build_report_assets.py    outputs/report/ (tables, figures, results.md)
 
 Steps 1-5 and 9 are skipped when their output already exists (use --redo to repeat them);
-steps 6-7 skip finished models themselves; 8 and 10 always run (they are quick).
+steps 6, 7 and 10 skip finished models themselves; 8, 11 and 12 always run (they are quick).
 """
 
 import argparse
@@ -52,6 +54,12 @@ STEPS: list[tuple[str, list[str], str | None]] = [
     ("Train on synthetic", ["run_augmentation.py", "--tstr", "--settings", PILOT_CHOICE], None),
     ("Summarise experiments", ["summarize_augmentation.py"], None),
     ("Bootstrap intervals", ["bootstrap_results.py"], "outputs/tables/bootstrap_setups.csv"),
+    (
+        "Paper protocol",
+        ["run_augmentation.py", "--whole-database", "--settings", PILOT_CHOICE],
+        None,
+    ),
+    ("Summarise paper protocol", ["summarize_paper_protocol.py"], None),
     ("Report assets", ["build_report_assets.py"], None),
 ]
 

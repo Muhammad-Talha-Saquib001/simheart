@@ -22,6 +22,7 @@ from simheart.data.scaling import minmax_to_sim_range, sim_to_unit
 from simheart.data.synthetic import METHODS, load_synthetic
 
 SETUPS: tuple[str, ...] = ("real", "oversample", *METHODS)
+SPLITS: tuple[str, ...] = ("train", "validation", "test")
 STRICT_EXCLUDED_RECORDS: tuple[str, ...] = ("202",)  # same patient as training record 201
 
 
@@ -33,6 +34,23 @@ def real_binary(
     beats = sim_to_unit(minmax_to_sim_range(data["X"]))
     labels = (data["y"] == CLASS_TO_INDEX[beat_type]).astype(np.int64)
     return beats, labels, data["record"]
+
+
+def whole_database(
+    processed_dir: str | Path, beat_type: str
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Every real beat (train + validation + test), as the SimGANs paper's Table 1 evaluates.
+
+    Returns (beats, 0/1 labels, records, split): ``split`` names each beat's split
+    ("train" = patients the classifier was trained on; "validation" and "test" = patients
+    it never trained on).
+    """
+    parts = [real_binary(processed_dir, split, beat_type) for split in SPLITS]
+    beats, labels, records = (np.concatenate(arrays) for arrays in zip(*parts, strict=True))
+    split = np.concatenate(
+        [np.full(len(p[1]), name) for name, p in zip(SPLITS, parts, strict=True)]
+    )
+    return beats, labels, records, split
 
 
 def strict_mask(records: np.ndarray) -> np.ndarray:
