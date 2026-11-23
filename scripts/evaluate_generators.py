@@ -70,7 +70,7 @@ def score(
         "mmd": mmd_rbf(beats, val),
         "diversity_ratio": mean_pairwise_distance(beats) / val_diversity,
         "nn_train_median": float(nearest_distances(beats, train).median()),
-        "near_copy_rate": near_copy_rate(beats, train, val),
+        "near_copy_rate": near_copy_rate(beats, train),
         **physiology(beats),
     }
 
@@ -102,7 +102,7 @@ def main() -> None:
         # Real training beats are trivially "copies" of the training set; for distance
         # measures the honest real reference is the held-out validation beats.
         real["nn_train_median"] = float(nearest_distances(val, train).median())
-        real["near_copy_rate"] = near_copy_rate(val, train, val)
+        real["near_copy_rate"] = near_copy_rate(val, train)
         rows.append({"class": beat_type, "method": "real", "seed": "", **real})
         print(f"{beat_type} real: MMD {real['mmd']:.3f}", flush=True)
 

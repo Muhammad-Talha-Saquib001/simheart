@@ -35,12 +35,12 @@ def test_unknown_method_is_rejected(tmp_path):
         save_synthetic(tmp_path, "vae", "S", 0, np.zeros((2, 216)), n_train=1, source="x")
 
 
-def test_near_copy_rate_is_about_five_percent_for_held_out_beats_and_one_for_copies():
+def test_near_copy_rate_is_about_five_percent_for_new_draws_and_one_for_copies():
     generator = torch.Generator().manual_seed(0)
     train = torch.randn(500, 216, generator=generator)
-    held_out = torch.randn(400, 216, generator=generator)
+    # New draws from the same distribution score about the quantile; copies score 1.
     fresh = torch.randn(400, 216, generator=generator)
-
-    assert near_copy_rate(held_out, train, held_out) == pytest.approx(0.05, abs=0.01)
-    assert near_copy_rate(fresh, train, held_out) == pytest.approx(0.05, abs=0.04)
-    assert near_copy_rate(train[:100], train, held_out) == 1.0
+    assert near_copy_rate(fresh, train) == pytest.approx(0.05, abs=0.05)
+    assert near_copy_rate(train[:100], train) == 1.0
+    noisy_copies = train[:100] + 0.01 * torch.randn(100, 216, generator=generator)
+    assert near_copy_rate(noisy_copies, train) == 1.0
