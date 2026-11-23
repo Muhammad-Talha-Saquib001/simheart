@@ -193,6 +193,7 @@ def main() -> None:
         euler["weight"] = args.weight
     if args.pairing:
         euler["pairing"] = args.pairing
+    train_config.extra_warmup = int(euler.get("warmup_iterations", 0))
 
     model = config["model"]
     run_name = args.run_name or model

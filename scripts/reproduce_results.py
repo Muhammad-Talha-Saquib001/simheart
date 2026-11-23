@@ -2,7 +2,7 @@
 
 Run from the repository root, after scripts/train_all.py has finished all 18 runs:
 
-    .venv/bin/python scripts/reproduce_results.py            # all steps (~0.5-1 h on a GPU)
+    .venv/bin/python scripts/reproduce_results.py            # all steps (~3-3.5 h on a GPU)
     .venv/bin/python scripts/reproduce_results.py --check    # only check training is complete
 
 Steps (each a separate process; the script stops at the first failure):
@@ -18,10 +18,12 @@ Steps (each a separate process; the script stops at the first failure):
     9. bootstrap_results.py      confidence intervals over test patients (CPU, no retraining)
    10. run_augmentation.py --whole-database   the paper's protocol (resumable)
    11. summarize_paper_protocol.py            its tables, figure and reproducibility check
-   12. build_report_assets.py    outputs/report/ (tables, figures, results.md)
+   12. train_all.py (V, 3 models x 10 seeds)  training reliability study (~2.6 h, resumable)
+   13. summarize_failure_study.py             failure rates and the warm-up's effect
+   14. build_report_assets.py    outputs/report/ (tables, figures, results.md)
 
 Steps 1-5 and 9 are skipped when their output already exists (use --redo to repeat them);
-steps 6, 7 and 10 skip finished models themselves; 8, 11 and 12 always run (they are quick).
+steps 6, 7, 10 and 12 skip finished models themselves; 8, 11, 13 and 14 always run.
 """
 
 import argparse
@@ -60,6 +62,22 @@ STEPS: list[tuple[str, list[str], str | None]] = [
         None,
     ),
     ("Summarise paper protocol", ["summarize_paper_protocol.py"], None),
+    (
+        "Reliability study training",
+        [
+            "train_all.py",
+            "--classes",
+            "V",
+            "--models",
+            "dcgan",
+            "simdcgan",
+            "simdcgan_warmup",
+            "--seeds",
+            *[str(s) for s in range(10)],
+        ],
+        None,
+    ),  # fmt: skip
+    ("Summarise reliability study", ["summarize_failure_study.py"], None),
     ("Report assets", ["build_report_assets.py"], None),
 ]
 

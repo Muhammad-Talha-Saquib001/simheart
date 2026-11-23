@@ -83,6 +83,30 @@ INTERPRETATION = {
         "them. The failure shows up clearly only when the synthetic beats are all the "
         "classifier sees (section 5)."
     ),
+    "reliability": (
+        "**Interpretation.** *Without a warm-up, SimDCGAN is unreliable on V:* 6 of 10 runs "
+        "failed (95 % interval 26-88 %), against 0 of 10 for DCGAN and 0 of 10 for SimDCGAN "
+        "with the warm-up (each 0-31 %). Fisher's test gives p = 0.011 for both comparisons; "
+        "they were planned in advance but are descriptive, and the intervals do not overlap. "
+        "*How the runs fail:* in 9 of the 10 plain SimDCGAN runs the first checkpoint "
+        "(iteration 250) is already in the failure region. Three of them escaped later "
+        "(seed 0 by iteration 1,500, seeds 1 and 6 only by 3,250-3,500), six never did, and "
+        "only seed 3 trained normally from the start. DCGAN and the warm-up runs spend at most "
+        "2 and 4 of 20 checkpoints in the failure region, all early. So the full Euler weight "
+        "from the first iteration breaks training, and whether a run recovers within 5,000 "
+        "iterations is luck; with longer training some failed runs might recover (not "
+        "tested). *The warm-up costs nothing measurable:* among successful runs, warm-up "
+        "MMD is 0.099 ± 0.014 against 0.102 ± 0.005 without it, and the Euler score 7.5 ± "
+        "0.7 against 7.8 ± 1.1 (paired on the 4 seeds where both succeeded: MMD -0.001 ± "
+        "0.008, Euler -0.12 ± 0.86). Both SimDCGAN variants keep a lower Euler score than "
+        "DCGAN (9.9 ± 4.9, or 8.3 without DCGAN seed 4 at 24.0) and less power above 40 Hz. "
+        "*What this means for the main results:* the augmentation experiments use SimDCGAN "
+        "seeds 0-2 without warm-up; one failed and the other two recovered only after 1,500 and "
+        "3,250 iterations, so 1 failure "
+        "in 3 was, if anything, a lucky draw. The augmentation was not rerun with warm-up "
+        "generators. The finding for the report: the Euler loss needs a warm-up to train "
+        "reliably on V; with one, it trains as reliably as DCGAN."
+    ),
     "bootstrap": (
         "**Interpretation.** *Primary comparisons (V, 1x):* SimDCGAN beats DCGAN by +0.036 "
         "AP, with a 95 % interval of [-0.001, +0.090]; the difference is above 0 in 97 % of "
@@ -519,6 +543,46 @@ def main() -> None:
             ("usable", "Usable replicates"),
         ],
     )
+    failure_rows = read_csv(TABLES / "failure_study_summary.csv")
+    q = lambda r, k, d: f"{float(r[k]):.{d}f} ± {float(r[k + '_sd']):.{d}f}"  # noqa: E731
+    tables["failure_study"] = markdown_table(
+        [
+            {
+                "model": r["model"],
+                "failed": f"{r['failed']}/{r['runs']}",
+                "ci": f"{float(r['ci_low']):.0%}-{float(r['ci_high']):.0%}",
+                "mmd": q(r, "mmd", 3),
+                "div": q(r, "diversity_ratio", 2),
+                "euler": q(r, "euler_best_median", 2),
+                "hf": q(r, "hf_fraction_median", 4),
+            }
+            for r in failure_rows
+        ],
+        [
+            ("model", "Model"),
+            ("failed", "Failed runs"),
+            ("ci", "Failure rate, 95 % interval"),
+            ("mmd", "MMD ↓ (successful runs)"),
+            ("div", "Diversity"),
+            ("euler", "Physiology (Euler) ↓"),
+            ("hf", "Power > 40 Hz"),
+        ],
+    )
+    failure_text = ""
+    paired_path = TABLES / "failure_study_paired.json"
+    if paired_path.exists():
+        paired = json.loads(paired_path.read_text())
+        diff = paired["warmup_minus_plain"]
+        fisher = ", ".join(
+            f"{k.replace('_', ' ')}: p = {v:.2f}" for k, v in paired["fisher_p"].items()
+        )
+        failure_text = (
+            f"Fisher's exact test on the failure counts (descriptive; 10 runs per model can "
+            f"only show large differences): {fisher}. Paired by seed, where both succeeded "
+            f"({len(paired['seeds'])} seeds), warm-up minus no warm-up: MMD "
+            f"{diff['mmd'][0]:+.3f} ± {diff['mmd'][1]:.3f}, Euler score "
+            f"{diff['euler_best_median'][0]:+.2f} ± {diff['euler_best_median'][1]:.2f}."
+        )
     tables["tstr"] = markdown_table(
         tstr_rows,
         [
@@ -656,6 +720,21 @@ def main() -> None:
         "",
         INTERPRETATION["generators"],
         "",
+        "## 3b. Training reliability (V, 10 seeds per model)",
+        "",
+        "Phase 12. Each model was trained on V with seeds 0-9, including SimDCGAN with a "
+        "warm-up: the Euler weight rises linearly from 0 over the first 1,000 of 5,000 "
+        "iterations (one value, fixed before the runs). A run counts as **failed** when its "
+        "best checkpoint has a diversity ratio below 0.3 or more than 10 % of its power above "
+        "40 Hz (rule fixed before the runs, decision log §19). Failure rates have exact 95 % "
+        "intervals; quality is the mean ± spread over the runs that succeeded.",
+        "",
+        tables["failure_study"] or "*Not run (summarize_failure_study.py).*",
+        "",
+        failure_text,
+        "",
+        INTERPRETATION["reliability"],
+        "",
         "## 4. Augmentation: detection on unseen patients (DS2)",
         "",
         pilot_text,
@@ -764,7 +843,10 @@ def main() -> None:
         "(recognised clinically by their early timing) are detected at near-chance level; F "
         "training and test beats come from different single patients (records 208 and 213).",
         "- One of the 18 GAN runs (SimDCGAN, V, seed 2) failed at the start of training; it "
-        "is kept in the main results and removed only in the labelled supplementary tables.",
+        "is kept in the main results and removed only in the labelled supplementary tables. "
+        "Over 10 seeds, SimDCGAN without warm-up failed on V in 6 runs (section 3b); the "
+        "warm-up removed the failures, but the augmentation experiments were not rerun with "
+        "warm-up generators, and the reliability study covers V only.",
         "- The standard split shares one patient between training and test (201/202); "
         "results without record 202 are reported alongside.",
         "",
@@ -782,6 +864,7 @@ def main() -> None:
         "augmentation_*.png",
         "bootstrap_*.png",
         "paper_protocol.png",
+        "failure_study.png",
         "api_demo.png",
     ]:
         for path in FIGURES.glob(pattern):

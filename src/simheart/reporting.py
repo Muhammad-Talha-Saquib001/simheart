@@ -20,6 +20,10 @@ PAPER_TABLE_1 = {
     "F": {"recall": 0.60, "dcgan": 0.20, "simdcgan": 0.40},
 }
 
+# Phase 12 failure rule, fixed before the reliability runs (decision log §19).
+FAILURE_MIN_DIVERSITY = 0.3
+FAILURE_MAX_HF_FRACTION = 0.10
+
 FINETUNE_EPOCHS = 5
 
 
@@ -116,3 +120,25 @@ def markdown_table(
     ]
     lines += ["| " + " | ".join(text(row, key) for key, _ in columns) + " |" for row in rows]
     return "\n".join(lines)
+
+
+def is_failed_run(best: dict) -> bool:
+    """Phase 12 rule: a GAN run failed if its best checkpoint is collapsed or noise-like.
+
+    ``best`` is the ``best`` entry of a run's summary.json. Failed means a diversity ratio
+    below 0.3 (near-identical beats) or more than 10 % of signal power above 40 Hz (noise).
+    """
+    return (
+        best["diversity_ratio"] < FAILURE_MIN_DIVERSITY
+        or best["hf_fraction_median"] > FAILURE_MAX_HF_FRACTION
+    )
+
+
+def clopper_pearson(k: int, n: int, level: float = 0.95) -> tuple[float, float]:
+    """Exact (Clopper-Pearson) interval for a rate of k events in n trials."""
+    from scipy.stats import beta
+
+    alpha = 1 - level
+    low = 0.0 if k == 0 else float(beta.ppf(alpha / 2, k, n - k + 1))
+    high = 1.0 if k == n else float(beta.ppf(1 - alpha / 2, k + 1, n - k))
+    return low, high

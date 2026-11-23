@@ -20,13 +20,17 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODELS = {"dcgan": "configs/dcgan.yaml", "simdcgan": "configs/simdcgan.yaml"}
+MODELS = {
+    "dcgan": "configs/dcgan.yaml",
+    "simdcgan": "configs/simdcgan.yaml",
+    "simdcgan_warmup": "configs/simdcgan_warmup.yaml",  # Phase 12 (V only)
+}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--classes", nargs="+", default=["S", "V", "F"])
-    parser.add_argument("--models", nargs="+", default=list(MODELS), choices=list(MODELS))
+    parser.add_argument("--models", nargs="+", default=["dcgan", "simdcgan"], choices=list(MODELS))
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
     args = parser.parse_args()
 

@@ -43,7 +43,7 @@ After [setup](#setup) and [data preparation](#prepare-the-data), three commands 
 ```bash
 .venv/bin/python scripts/fit_params.py          # simulator parameters per beat (~4 min, GPU)
 .venv/bin/python scripts/train_all.py           # DCGAN and SimDCGAN, S/V/F, 3 seeds (~2 h, GPU)
-.venv/bin/python scripts/reproduce_results.py   # everything after training (~0.5-1 h, GPU)
+.venv/bin/python scripts/reproduce_results.py   # everything after training (~3-3.5 h, GPU)
 ```
 
 `reproduce_results.py` first checks that all 18 training runs finished (`--check` does only that). It then runs, in order:
@@ -58,7 +58,9 @@ After [setup](#setup) and [data preparation](#prepare-the-data), three commands 
 9. confidence intervals over test patients (a patient-level bootstrap of the saved test scores; no retraining);
 10. the SimGANs paper's evaluation protocol (the same fine-tuning, scored on the whole database, split into training, validation and test patients);
 11. its summary and a reproducibility check;
-12. the report package.
+12. a training-reliability study: DCGAN, SimDCGAN and SimDCGAN with a warm-up of the Euler loss, V only, 10 seeds each;
+13. its failure rates and the warm-up's effect;
+14. the report package.
 
 Decisions that could otherwise be tuned on test data follow pre-set rules that use validation data only (`simheart.reporting`):
 - **Classifier settings:** the learning rate with the best validation AP, then the best epoch count at that rate.

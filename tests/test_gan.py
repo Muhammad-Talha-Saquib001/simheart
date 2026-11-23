@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 
 from simheart.models import Discriminator, Generator, init_weights
@@ -51,3 +52,26 @@ def test_training_smoke_run_writes_loadable_checkpoints(tmp_path):
     noise = torch.randn(4, 100)
     assert generate(generator, noise).shape == (4, 216)
     torch.testing.assert_close(generate(generator, noise), generate(generator, noise))
+
+
+def test_warmup_ramps_the_extra_loss_from_zero_to_full_weight():
+    from simheart.training.gan import warmup_factor
+
+    assert [warmup_factor(i, 4) for i in (1, 2, 4, 5, 100)] == [0.25, 0.5, 1.0, 1.0, 1.0]
+    assert warmup_factor(1, 0) == 1.0  # no warm-up: full weight from the start
+
+
+def test_warmup_scales_the_logged_extra_loss(tmp_path):
+    torch.manual_seed(0)
+    beats = np.random.default_rng(0).normal(size=(40, 216))
+    config = GanTrainConfig(
+        iterations=8, batch_size=8, log_every=1, eval_every=8, snapshot_every=8, n_eval=8,
+        extra_warmup=4,
+    )  # fmt: skip
+    result = train_gan(
+        beats[:32], beats[32:], config, torch.device("cpu"), tmp_path,
+        extra_generator_loss=lambda fake: torch.ones((), device=fake.device),
+    )  # fmt: skip
+    logged = [row["loss_g_extra"] for row in result.train_log]
+    assert logged == pytest.approx([0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0, 1.0])
+    assert [row["extra_factor"] for row in result.train_log][:4] == [0.25, 0.5, 0.75, 1.0]

@@ -39,6 +39,14 @@ class GanTrainConfig:
     snapshot_every: int = 500
     n_eval: int = 512
     n_snapshot: int = 16
+    # Warm-up for the extra generator loss: its weight rises linearly from 0 to 1 over the
+    # first ``extra_warmup`` iterations (0 = full weight from the start, the default).
+    extra_warmup: int = 0
+
+
+def warmup_factor(iteration: int, warmup: int) -> float:
+    """Multiplier for the extra loss at ``iteration`` (1-based): iteration / warmup, capped at 1."""
+    return 1.0 if warmup <= 0 else min(1.0, iteration / warmup)
 
 
 @dataclass
@@ -149,6 +157,8 @@ def train_gan(
                 if extra_generator_loss
                 else torch.zeros((), device=device)
             )
+            if config.extra_warmup > 0:
+                extra = warmup_factor(iteration, config.extra_warmup) * extra
             (loss_adv + extra).backward()
             opt_g.step()
 
@@ -159,6 +169,7 @@ def train_gan(
                     "loss_d": loss_d.item(),
                     "loss_g_adversarial": loss_adv.item(),
                     "loss_g_extra": extra.item(),
+                    "extra_factor": warmup_factor(iteration, config.extra_warmup),
                     "d_real": torch.sigmoid(logits_real).mean().item(),
                     "d_fake": torch.sigmoid(logits_fake).mean().item(),
                 }
