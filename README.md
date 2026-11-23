@@ -43,7 +43,7 @@ After [setup](#setup) and [data preparation](#prepare-the-data), three commands 
 ```bash
 .venv/bin/python scripts/fit_params.py          # simulator parameters per beat (~4 min, GPU)
 .venv/bin/python scripts/train_all.py           # DCGAN and SimDCGAN, S/V/F, 3 seeds (~2 h, GPU)
-.venv/bin/python scripts/reproduce_results.py   # everything after training (~2-2.5 h, GPU)
+.venv/bin/python scripts/reproduce_results.py   # everything after training (~0.5-1 h, GPU)
 ```
 
 `reproduce_results.py` first checks that all 18 training runs finished (`--check` does only that). It then runs, in order:
@@ -55,7 +55,8 @@ After [setup](#setup) and [data preparation](#prepare-the-data), three commands 
 6. the augmentation experiments;
 7. train-on-synthetic;
 8. their summaries;
-9. the report package.
+9. confidence intervals over test patients (a patient-level bootstrap of the saved test scores; no retraining);
+10. the report package.
 
 Decisions that could otherwise be tuned on test data follow pre-set rules that use validation data only (`simheart.reporting`):
 - **Classifier settings:** the learning rate with the best validation AP, then the best epoch count at that rate.

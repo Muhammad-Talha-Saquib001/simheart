@@ -59,7 +59,8 @@ INTERPRETATION = {
         "the control already reaches AP 0.90. SimDCGAN is the only setup whose mean AP is "
         "above the control at every amount, and it beats DCGAN at the same amount in all 9 "
         "paired comparisons (3 seeds x 3 amounts). Its gain over the control is small "
-        "(+0.005 to +0.013 AP) and within the seed spread, so the clearer effect is that "
+        "(+0.005 to +0.013 AP) and within the seed spread (and the patient-level intervals of "
+        "section 4c), so the clearer effect is that "
         "DCGAN beats (-0.02 to -0.03) and simple oversampling (-0.01 to -0.04) *hurt*, "
         "while SimDCGAN beats do not. At the paper's operating point (recall 0.91), "
         "precision rises from 0.50 (control) to "
@@ -81,6 +82,25 @@ INTERPRETATION = {
         "beats are easy to tell apart from real beats, so the classifier effectively ignores "
         "them. The failure shows up clearly only when the synthetic beats are all the "
         "classifier sees (section 5)."
+    ),
+    "bootstrap": (
+        "**Interpretation.** *Primary comparisons (V, 1x):* SimDCGAN beats DCGAN by +0.036 "
+        "AP, with a 95 % interval of [-0.001, +0.090]; the difference is above 0 in 97 % of "
+        "resamples. That is strong but not conclusive evidence: the interval just reaches 0. "
+        "SimDCGAN against the control gives +0.009 [-0.007, +0.055] (above 0 in 74 %), so "
+        "there is **no evidence that SimDCGAN augmentation improves on real data alone**. "
+        "The honest summary is that SimDCGAN beats are *safer* to add than DCGAN beats "
+        "(DCGAN is below the control in 89-93 % of resamples, oversampling in 85-96 %), not "
+        "that they make detection better. "
+        "*Which patients matter far more than which seed:* the control's V AP ranges over "
+        "[0.71, 0.97] across resampled test sets, against ± 0.006 across seeds, so the "
+        "± values in section 4 understate the real uncertainty about ten-fold (an interval "
+        "that wide corresponds to a spread of about ± 0.066). "
+        "*Descriptive results:* at 2x the SimDCGAN - DCGAN interval excludes 0 (+0.043 "
+        "[+0.002, +0.096]), and precision at recall 0.91 is higher by +0.14 to +0.20, with "
+        "intervals that just reach 0. On S and F every interval is wide or sits on 0; the "
+        "two that exclude 0 (S DCGAN 2x below the control; an F difference of 0.001) are "
+        "what about 70 intervals produce by chance and aren't interpreted."
     ),
     "tstr": (
         "**Interpretation.** Trained on synthetic V beats alone (real non-V beats), the "
@@ -199,6 +219,65 @@ def augmentation_rows(results: list[dict]) -> tuple[list[dict], dict]:
             }
         )
     return rows, groups
+
+
+def ci(row: dict, point: str, low: str, high: str) -> str:
+    """'0.009 [-0.012, 0.031]': value and 95 % interval over test patients."""
+    return f"{float(row[point]):+.3f} [{float(row[low]):+.3f}, {float(row[high]):+.3f}]"
+
+
+def bootstrap_tables() -> dict[str, list[dict]]:
+    """Rows for the confidence-interval tables (empty when the bootstrap hasn't run)."""
+    setups = read_csv(TABLES / "bootstrap_setups.csv")
+    pairs = read_csv(TABLES / "bootstrap_simdcgan_vs_dcgan.csv")
+    primary = [
+        {
+            "comparison": f"{r['class']} {float(r['amount'])}×: SimDCGAN − "
+            + ("DCGAN" if "dcgan" in r else "control"),
+            "diff": ci(r, "diff", "low", "high")
+            if "dcgan" in r
+            else ci(r, "diff_vs_control", "diff_low", "diff_high"),
+            "above": f"{float(r['above_0' if 'dcgan' in r else 'diff_above_0']):.0%}",
+            "usable": r["usable"],
+        }
+        for r in pairs + setups
+        if r["primary"] == "True"
+    ]
+    vs_control = [
+        {
+            "class": r["class"],
+            "setup": r["setup"],
+            "amount": f"{float(r['amount'])}×",
+            "value": f"{float(r['value']):.3f} [{float(r['low']):.3f}, {float(r['high']):.3f}]",
+            "diff": ci(r, "diff_vs_control", "diff_low", "diff_high"),
+            "above": f"{float(r['diff_above_0']):.0%}",
+            "usable": r["usable"],
+        }
+        for r in setups
+        if r["metric"] == "ap" and r["setup"] != "real"
+    ]
+    control = [
+        {
+            "class": r["class"],
+            "value": f"{float(r['value']):.3f} [{float(r['low']):.3f}, {float(r['high']):.3f}]",
+            "seed_sd": f"± {float(r['seed_sd']):.3f}",
+            "usable": r["usable"],
+        }
+        for r in setups
+        if r["metric"] == "ap" and r["setup"] == "real"
+    ]
+    vs_dcgan = [
+        {
+            "class": r["class"],
+            "amount": f"{float(r['amount'])}×",
+            "metric": "AP" if r["metric"] == "ap" else "Precision @ paper recall",
+            "diff": ci(r, "diff", "low", "high"),
+            "above": f"{float(r['above_0']):.0%}",
+            "usable": r["usable"],
+        }
+        for r in pairs
+    ]
+    return {"primary": primary, "control": control, "vs_control": vs_control, "vs_dcgan": vs_dcgan}
 
 
 def paired_wins(groups: dict) -> list[dict]:
@@ -373,6 +452,50 @@ def main() -> None:
                         "f1": fmt(*mean_std(r["f1_test"] for r in group)),
                     }
                 )
+    boot = bootstrap_tables()
+    boot_rows = read_csv(TABLES / "bootstrap_setups.csv")
+    n_boot_text = f"{int(boot_rows[0]['n_boot']):,} times" if boot_rows else "many times"
+    tables["bootstrap_primary"] = markdown_table(
+        boot["primary"],
+        [
+            ("comparison", "Primary comparison (test AP)"),
+            ("diff", "Difference [95 % interval]"),
+            ("above", "Replicates with difference > 0"),
+            ("usable", "Usable replicates"),
+        ],
+    )
+    tables["bootstrap_control"] = markdown_table(
+        boot["control"],
+        [
+            ("class", "Class"),
+            ("value", "Control test AP [95 % interval over patients]"),
+            ("seed_sd", "Spread over seeds"),
+            ("usable", "Usable replicates"),
+        ],
+    )
+    tables["bootstrap_vs_dcgan"] = markdown_table(
+        boot["vs_dcgan"],
+        [
+            ("class", "Class"),
+            ("amount", "Added"),
+            ("metric", "Measure"),
+            ("diff", "SimDCGAN − DCGAN [95 % interval]"),
+            ("above", "Replicates > 0"),
+            ("usable", "Usable replicates"),
+        ],
+    )
+    tables["bootstrap_vs_control"] = markdown_table(
+        boot["vs_control"],
+        [
+            ("class", "Class"),
+            ("setup", "Setup"),
+            ("amount", "Added"),
+            ("value", "Test AP [95 % interval]"),
+            ("diff", "Minus control [95 % interval]"),
+            ("above", "Replicates > 0"),
+            ("usable", "Usable replicates"),
+        ],
+    )
     tables["tstr"] = markdown_table(
         tstr_rows,
         [
@@ -504,6 +627,36 @@ def main() -> None:
         "",
         INTERPRETATION["sensitivity"],
         "",
+        "## 4c. Uncertainty over test patients (bootstrap)",
+        "",
+        "The ± values above show how much results change when the classifier is retrained "
+        "with another seed. They don't show how much they depend on *which* 22 patients are "
+        "in the test set. Here the 22 DS2 records are resampled with replacement "
+        f"{n_boot_text}, and every classifier's saved test scores are rescored on each "
+        "resample (no retraining). Whole patients are resampled, not single beats, because a "
+        "patient's beats are very alike. Metrics are averaged over seeds inside each "
+        "resample, and every setup is scored on the same resamples, so differences are "
+        "paired. Intervals are 95 % percentile intervals. A resample with no positive beats "
+        "of the class can't be scored and is skipped (column *Usable replicates*). The two "
+        "primary comparisons were fixed before any interval was computed; every other "
+        "interval is descriptive, and with about 70 of them some will exclude 0 by chance.",
+        "",
+        tables["bootstrap_primary"] or "*Not run (scripts/bootstrap_results.py).*",
+        "",
+        "Control (real beats only):",
+        "",
+        tables["bootstrap_control"],
+        "",
+        "SimDCGAN − DCGAN at the same amount:",
+        "",
+        tables["bootstrap_vs_dcgan"],
+        "",
+        "Every setup against the control:",
+        "",
+        tables["bootstrap_vs_control"],
+        "",
+        INTERPRETATION["bootstrap"],
+        "",
         "## 5. Train on synthetic, test on real",
         "",
         tables["tstr"] or "*Not run.*",
@@ -554,6 +707,7 @@ def main() -> None:
         "fits_*.png",
         "generators_*.png",
         "augmentation_*.png",
+        "bootstrap_*.png",
         "api_demo.png",
     ]:
         for path in FIGURES.glob(pattern):

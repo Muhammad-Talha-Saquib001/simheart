@@ -2,7 +2,7 @@
 
 Run from the repository root, after scripts/train_all.py has finished all 18 runs:
 
-    .venv/bin/python scripts/reproduce_results.py            # all steps (~2-2.5 h on a GPU)
+    .venv/bin/python scripts/reproduce_results.py            # all steps (~0.5-1 h on a GPU)
     .venv/bin/python scripts/reproduce_results.py --check    # only check training is complete
 
 Steps (each a separate process; the script stops at the first failure):
@@ -15,10 +15,11 @@ Steps (each a separate process; the script stops at the first failure):
     6. run_augmentation.py       augmentation experiments (resumable)
     7. run_augmentation.py --tstr   train-on-synthetic (resumable)
     8. summarize_augmentation.py tables and figures
-    9. build_report_assets.py    outputs/report/ (tables, figures, results.md)
+    9. bootstrap_results.py      confidence intervals over test patients (CPU, no retraining)
+   10. build_report_assets.py    outputs/report/ (tables, figures, results.md)
 
-Steps 1-5 are skipped when their output already exists (use --redo to repeat them); steps
-6-7 skip finished models themselves; 8-9 always run (they are quick).
+Steps 1-5 and 9 are skipped when their output already exists (use --redo to repeat them);
+steps 6-7 skip finished models themselves; 8 and 10 always run (they are quick).
 """
 
 import argparse
@@ -50,6 +51,7 @@ STEPS: list[tuple[str, list[str], str | None]] = [
     ("Augmentation experiments", ["run_augmentation.py", "--settings", PILOT_CHOICE], None),
     ("Train on synthetic", ["run_augmentation.py", "--tstr", "--settings", PILOT_CHOICE], None),
     ("Summarise experiments", ["summarize_augmentation.py"], None),
+    ("Bootstrap intervals", ["bootstrap_results.py"], "outputs/tables/bootstrap_setups.csv"),
     ("Report assets", ["build_report_assets.py"], None),
 ]
 
