@@ -5,6 +5,7 @@ Run from the repository root, after scripts/evaluate_generators.py:
     .venv/bin/python scripts/run_augmentation.py
     .venv/bin/python scripts/run_augmentation.py --tstr
     .venv/bin/python scripts/run_augmentation.py --whole-database   # the paper's protocol
+    .venv/bin/python scripts/run_augmentation.py --classes V --setups simdcgan_warmup  # Phase 13
 
 For every class and seed: train a base classifier on real training beats, then fine-tune a
 copy of it for the same number of epochs with each setup (real-only control, oversampling,
@@ -45,7 +46,7 @@ from simheart.classification.metrics import (
     scores_at_threshold,
 )
 from simheart.classification.train import ClassifierConfig, predict_scores, train_classifier
-from simheart.data.synthetic import METHODS
+from simheart.data.synthetic import ALL_METHODS, METHODS
 from simheart.utils import get_device, load_config, set_seed
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,11 +92,19 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="+", type=int)
     parser.add_argument("--settings", type=Path, help="pilot_choice.json (overrides training)")
     parser.add_argument(
+        "--setups",
+        nargs="+",
+        choices=["oversample", *ALL_METHODS],
+        help="setups (or, with --tstr, methods) to run instead of the configured ones",
+    )
+    parser.add_argument(
         "--whole-database", action="store_true", help="the paper's protocol (paper_protocol/)"
     )
     args = parser.parse_args()
     if args.tstr and args.whole_database:
         parser.error("--whole-database repeats the augmentation runs only")
+    if args.tstr and args.setups and "oversample" in args.setups:
+        parser.error("--tstr trains on synthetic beats; oversample is not a synthetic method")
 
     config = load_config(ROOT / "configs" / "classifier.yaml")
     processed, synthetic = ROOT / config["processed_dir"], ROOT / config["synthetic_dir"]
@@ -141,10 +150,12 @@ def main() -> None:
             sets |= {"x_whole": x_whole, "y_whole": y_whole, "split": split}
         for seed in args.seeds or config["seeds"]:
             if args.tstr:
-                jobs = [("tstr", method, config["tstr_amount"]) for method in METHODS]
+                methods = args.setups or METHODS
+                jobs = [("tstr", method, config["tstr_amount"]) for method in methods]
             else:
+                setups = args.setups or config["setups"]
                 jobs = [("augment", "real", 0.0)]
-                jobs += [("augment", s, a) for s in config["setups"] for a in config["amounts"]]
+                jobs += [("augment", s, a) for s in setups for a in config["amounts"]]
 
             base_path = out / "base" / f"{beat_type}_s{seed}.pt"
             if not args.tstr and not base_path.exists():

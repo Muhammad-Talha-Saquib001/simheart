@@ -103,9 +103,28 @@ INTERPRETATION = {
         "*What this means for the main results:* the augmentation experiments use SimDCGAN "
         "seeds 0-2 without warm-up; one failed and the other two recovered only after 1,500 and "
         "3,250 iterations, so 1 failure "
-        "in 3 was, if anything, a lucky draw. The augmentation was not rerun with warm-up "
-        "generators. The finding for the report: the Euler loss needs a warm-up to train "
-        "reliably on V; with one, it trains as reliably as DCGAN."
+        "in 3 was, if anything, a lucky draw. Augmentation with warm-up generators is "
+        "reported separately (section 4d). The finding for the report: the Euler loss "
+        "needs a warm-up to train reliably on V; with one, it trains as reliably as DCGAN."
+    ),
+    "warmup": (
+        "**Interpretation.** *Train-on-synthetic went as expected:* the warm-up generators "
+        "all work (seed 2 gives AP 0.90, against 0.08 for the plain seed 2 that failed), "
+        "and together they score 0.88 ± 0.03, against 0.83 ± 0.08 for DCGAN. *Augmentation "
+        "did not:* adding warm-up beats **lowers** V detection. At 1x (primary) the warm-up "
+        "is below the control by -0.038 AP [-0.093, -0.011] (below 0 in every resample) and "
+        "level with DCGAN, -0.010 [-0.076, +0.029]. It is below plain SimDCGAN in all 9 "
+        "seed pairs (0.86-0.88 against 0.90-0.91). This contradicts the expectation written "
+        "before the run (a small difference to plain SimDCGAN). *The generators themselves "
+        "look as good as the plain ones:* MMD 0.111-0.114 (plain seeds 0 and 1: 0.116 and "
+        "0.113), diversity 1.07-1.19, Euler 7.0-9.4, no near-copies. So the quality measures "
+        "in section 3 do not predict whether beats help a classifier, and we have no tested "
+        "explanation for the difference. *What this means for section 4:* SimDCGAN's "
+        "advantage over DCGAN as augmentation holds for our three original generators but "
+        "not for three generators trained the same way with a warm-up; it depends on the "
+        "particular generators rather than on the Euler loss alone. The overall conclusion "
+        "is unchanged and stronger: no synthetic source clearly improves V detection over "
+        "real data alone. Three seeds, V only."
     ),
     "bootstrap": (
         "**Interpretation.** *Primary comparisons (V, 1x):* SimDCGAN beats DCGAN by +0.036 "
@@ -354,6 +373,9 @@ def main() -> None:
     results = []
     if (EXPERIMENTS / "results.jsonl").exists():
         results = [json.loads(x) for x in (EXPERIMENTS / "results.jsonl").read_text().splitlines()]
+        # Main setups only; the supplementary warm-up rows are reported from their own
+        # tables (section 4d).
+        results = [r for r in results if r["setup"] in SETUPS]
     sections: list[str] = [
         "# SimHeart — Results",
         "",
@@ -583,6 +605,83 @@ def main() -> None:
             f"{diff['mmd'][0]:+.3f} ± {diff['mmd'][1]:.3f}, Euler score "
             f"{diff['euler_best_median'][0]:+.2f} ± {diff['euler_best_median'][1]:.2f}."
         )
+    # Supplementary (Phase 13): V augmentation with the warm-up generators.
+    names = {"real": "real only", "simdcgan_warmup": "simdcgan + warm-up"}
+    tables["warmup_cells"] = markdown_table(
+        [
+            {
+                "setup": names.get(r["setup"], r["setup"]),
+                "amount": r["amount"],
+                "ap": fmt(float(r["ap_test"]), float(r["ap_test_sd"])),
+                "seeds": " / ".join(f"{float(r[f'ap_test_s{s}']):.3f}" for s in range(3)),
+                "gain": f"{float(r['gain_vs_control']):+.3f}",
+            }
+            for r in read_csv(TABLES / "warmup_augmentation.csv")
+        ],
+        [
+            ("setup", "Setup"),
+            ("amount", "Added"),
+            ("ap", "Test AP (V, DS2)"),
+            ("seeds", "Seeds 0 / 1 / 2"),
+            ("gain", "Minus control"),
+        ],
+    )
+    tables["warmup_comparisons"] = markdown_table(
+        [
+            {
+                "comparison": ("**" if r["primary"] == "True" else "")
+                + r["comparison"].replace("warmup", "warm-up").replace("real", "control")
+                + ("**" if r["primary"] == "True" else ""),
+                "amount": r["amount"],
+                "diff": f"{float(r['diff']):+.3f} [{float(r['low']):+.3f}, "
+                f"{float(r['high']):+.3f}]",
+                "above": f"{float(r['above_0']):.0%}",
+                "wins": r["seed_wins"],
+            }
+            for r in read_csv(TABLES / "warmup_comparisons.csv")
+        ],
+        [
+            ("comparison", "Comparison (bold = primary)"),
+            ("amount", "Added"),
+            ("diff", "AP difference [95 % interval]"),
+            ("above", "Replicates > 0"),
+            ("wins", "Seeds where warm-up is higher"),
+        ],
+    )
+    tables["warmup_tstr"] = markdown_table(
+        [
+            {
+                "method": names.get(r["method"], r["method"]),
+                "seeds": " / ".join(f"{float(r[f'ap_test_s{s}']):.3f}" for s in range(3)),
+                "ap": fmt(float(r["ap_test"]), float(r["ap_test_sd"])),
+            }
+            for r in read_csv(TABLES / "warmup_tstr.csv")
+        ],
+        [("method", "Synthetic positives from"), ("seeds", "Seeds 0 / 1 / 2"), ("ap", "Test AP")],
+    )
+    tables["warmup_generators"] = markdown_table(
+        [
+            {
+                "method": names.get(r["method"], r["method"]),
+                "seed": r["seed"],
+                "mmd": f"{float(r['mmd']):.3f}",
+                "div": f"{float(r['diversity_ratio']):.2f}",
+                "euler": f"{float(r['euler_best_median']):.2f}",
+                "hf": f"{float(r['hf_fraction_median']):.4f}",
+                "copy": f"{float(r['near_copy_rate']):.1%}",
+            }
+            for r in read_csv(TABLES / "warmup_generators.csv")
+        ],
+        [
+            ("method", "Generator"),
+            ("seed", "Seed"),
+            ("mmd", "MMD ↓"),
+            ("div", "Diversity"),
+            ("euler", "Physiology (Euler) ↓"),
+            ("hf", "Power > 40 Hz"),
+            ("copy", "Near-copy rate"),
+        ],
+    )
     tables["tstr"] = markdown_table(
         tstr_rows,
         [
@@ -800,6 +899,30 @@ def main() -> None:
         "",
         INTERPRETATION["bootstrap"],
         "",
+        "## 4d. Supplementary: SimDCGAN with warm-up (V, not in the original plan)",
+        "",
+        "Phase 13, added after the main results and after the reliability study (section "
+        "3b), so it does not replace them. The warm-up generators (seeds 0-2) fine-tune the "
+        "same base classifiers with the same seeds and settings as every setup above, and "
+        "the intervals use the same 2,000 patient resamples as section 4c (checked: the "
+        "shared cells reproduce section 4c exactly). The two primary comparisons (V, 1x: "
+        "warm-up - DCGAN and warm-up - control) were fixed before running (decision log "
+        "§20).",
+        "",
+        tables["warmup_cells"] or "*Not run (scripts/summarize_warmup_augmentation.py).*",
+        "",
+        tables["warmup_comparisons"],
+        "",
+        "Train on synthetic (V; real negatives, synthetic positives only):",
+        "",
+        tables["warmup_tstr"],
+        "",
+        "Generators used (2,000 beats each, scored as in section 3):",
+        "",
+        tables["warmup_generators"],
+        "",
+        INTERPRETATION["warmup"],
+        "",
         "## 5. Train on synthetic, test on real",
         "",
         tables["tstr"] or "*Not run.*",
@@ -845,8 +968,10 @@ def main() -> None:
         "- One of the 18 GAN runs (SimDCGAN, V, seed 2) failed at the start of training; it "
         "is kept in the main results and removed only in the labelled supplementary tables. "
         "Over 10 seeds, SimDCGAN without warm-up failed on V in 6 runs (section 3b); the "
-        "warm-up removed the failures, but the augmentation experiments were not rerun with "
-        "warm-up generators, and the reliability study covers V only.",
+        "warm-up removed the failures (V only). The main augmentation results use "
+        "generators without warm-up; augmentation with warm-up generators (section 4d) "
+        "lowered V detection, so the augmentation result depends on the particular "
+        "generators.",
         "- The standard split shares one patient between training and test (201/202); "
         "results without record 202 are reported alongside.",
         "",
@@ -865,6 +990,7 @@ def main() -> None:
         "bootstrap_*.png",
         "paper_protocol.png",
         "failure_study.png",
+        "warmup_augmentation.png",
         "api_demo.png",
     ]:
         for path in FIGURES.glob(pattern):

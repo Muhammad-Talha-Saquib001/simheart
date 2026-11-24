@@ -43,7 +43,8 @@ def cell(values: list[float]) -> str:
 
 def main() -> None:
     rows = [json.loads(line) for line in (OUT / "results.jsonl").read_text().splitlines()]
-    augment = [r for r in rows if r["experiment"] == "augment"]
+    # Main setups only; the supplementary warm-up setup has its own summary (Phase 13).
+    augment = [r for r in rows if r["experiment"] == "augment" and r["setup"] in SETUPS]
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for r in augment:
         groups[(r["class"], r["setup"], r["amount"])].append(r)

@@ -19,9 +19,9 @@ import numpy as np
 from simheart.data.dataset import load_split
 from simheart.data.labels import CLASS_TO_INDEX
 from simheart.data.scaling import minmax_to_sim_range, sim_to_unit
-from simheart.data.synthetic import METHODS, load_synthetic
+from simheart.data.synthetic import ALL_METHODS, load_synthetic
 
-SETUPS: tuple[str, ...] = ("real", "oversample", *METHODS)
+SETUPS: tuple[str, ...] = ("real", "oversample", *ALL_METHODS)
 SPLITS: tuple[str, ...] = ("train", "validation", "test")
 STRICT_EXCLUDED_RECORDS: tuple[str, ...] = ("202",)  # same patient as training record 201
 

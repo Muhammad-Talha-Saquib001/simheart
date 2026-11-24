@@ -48,7 +48,8 @@ def load_scores(beat_type: str, results: list[dict]) -> tuple[dict, dict]:
     """Test scores [n_seeds, N] and per-seed reported AP for each (setup, amount) cell."""
     cells: dict[tuple, list[dict]] = defaultdict(list)
     for r in results:
-        if r["experiment"] == "augment" and r["class"] == beat_type:
+        # Main setups only; scripts/summarize_warmup_augmentation.py covers the warm-up.
+        if r["experiment"] == "augment" and r["class"] == beat_type and r["setup"] in SETUPS:
             cells[(r["setup"], r["amount"])].append(r)
     scores, reported = {}, {}
     for cell, rows in sorted(cells.items(), key=lambda kv: (SETUPS.index(kv[0][0]), kv[0][1])):

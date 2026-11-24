@@ -20,10 +20,15 @@ Steps (each a separate process; the script stops at the first failure):
    11. summarize_paper_protocol.py            its tables, figure and reproducibility check
    12. train_all.py (V, 3 models x 10 seeds)  training reliability study (~2.6 h, resumable)
    13. summarize_failure_study.py             failure rates and the warm-up's effect
-   14. build_report_assets.py    outputs/report/ (tables, figures, results.md)
+   14. evaluate_generators.py (V, warm-up)    warm-up generator scores + synthetic sets
+   15. run_augmentation.py (V, warm-up)       supplementary augmentation (resumable)
+   16. run_augmentation.py --tstr (V, warm-up)  supplementary train-on-synthetic
+   17. summarize_warmup_augmentation.py       its tables, intervals and figure (CPU)
+   18. build_report_assets.py    outputs/report/ (tables, figures, results.md)
 
-Steps 1-5 and 9 are skipped when their output already exists (use --redo to repeat them);
-steps 6, 7, 10 and 12 skip finished models themselves; 8, 11, 13 and 14 always run.
+Steps 1-5, 9, 14 and 17 are skipped when their output already exists (use --redo to repeat
+them); steps 6, 7, 10, 12, 15 and 16 skip finished models themselves; 8, 11, 13 and 18
+always run.
 """
 
 import argparse
@@ -78,6 +83,51 @@ STEPS: list[tuple[str, list[str], str | None]] = [
         None,
     ),  # fmt: skip
     ("Summarise reliability study", ["summarize_failure_study.py"], None),
+    (
+        "Evaluate warm-up generators",
+        [
+            "evaluate_generators.py",
+            "--classes",
+            "V",
+            "--models",
+            "simdcgan_warmup",
+            "--table",
+            "outputs/tables/generator_eval_warmup.csv",
+        ],
+        "outputs/tables/generator_eval_warmup.csv",
+    ),  # fmt: skip
+    (
+        "Warm-up augmentation",
+        [
+            "run_augmentation.py",
+            "--classes",
+            "V",
+            "--setups",
+            "simdcgan_warmup",
+            "--settings",
+            PILOT_CHOICE,
+        ],
+        None,
+    ),  # fmt: skip
+    (
+        "Warm-up train on synthetic",
+        [
+            "run_augmentation.py",
+            "--tstr",
+            "--classes",
+            "V",
+            "--setups",
+            "simdcgan_warmup",
+            "--settings",
+            PILOT_CHOICE,
+        ],
+        None,
+    ),  # fmt: skip
+    (
+        "Summarise warm-up augmentation",
+        ["summarize_warmup_augmentation.py"],
+        "outputs/tables/warmup_comparisons.csv",
+    ),
     ("Report assets", ["build_report_assets.py"], None),
 ]
 

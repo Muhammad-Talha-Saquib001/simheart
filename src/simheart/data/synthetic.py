@@ -1,8 +1,9 @@
 """Saving and loading synthetic beat sets for the augmentation experiments.
 
-Each set holds synthetic beats of one class, made by one method (``simulator``, ``dcgan``
-or ``simdcgan``) with one seed, at twice the class's real training size. Smaller amounts
-are the first part of the set: amount 0.5 gives the first quarter, 1.0 the first half.
+Each set holds synthetic beats of one class, made by one method (``simulator``, ``dcgan``,
+``simdcgan``, or the supplementary ``simdcgan_warmup``) with one seed, at twice the class's
+real training size. Smaller amounts are the first part of the set: amount 0.5 gives the
+first quarter, 1.0 the first half.
 
 Beats are stored like real beats after loading: scaled per beat with
 ``minmax_to_sim_range``, so amplitude range cannot tell synthetic from real beats. Every
@@ -19,6 +20,10 @@ import numpy as np
 from simheart.data.labels import CLASS_TO_INDEX
 
 METHODS: tuple[str, ...] = ("simulator", "dcgan", "simdcgan")
+# Supplementary methods (Phase 13): stored and loaded like the others, but not part of the
+# main experiments, so default commands and tables use METHODS only.
+EXTRA_METHODS: tuple[str, ...] = ("simdcgan_warmup",)
+ALL_METHODS: tuple[str, ...] = (*METHODS, *EXTRA_METHODS)
 
 
 def synthetic_path(synthetic_dir: str | Path, method: str, beat_type: str, seed: int) -> Path:
@@ -35,8 +40,8 @@ def save_synthetic(
     source: str,
 ) -> Path:
     """Save scaled synthetic beats [n, 216] with labels and metadata; returns the path."""
-    if method not in METHODS:
-        raise ValueError(f"method must be one of {METHODS}, got {method!r}")
+    if method not in ALL_METHODS:
+        raise ValueError(f"method must be one of {ALL_METHODS}, got {method!r}")
     metadata = {
         "synthetic": True,
         "method": method,

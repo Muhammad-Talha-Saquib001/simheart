@@ -22,7 +22,7 @@ from simheart.classification.model import KachueeResNet
 from simheart.classification.train import ClassifierConfig, predict_scores, train_classifier
 from simheart.data.labels import CLASS_TO_INDEX
 from simheart.data.scaling import minmax_to_sim_range
-from simheart.data.synthetic import save_synthetic
+from simheart.data.synthetic import ALL_METHODS, METHODS, save_synthetic
 
 CPU = torch.device("cpu")
 
@@ -48,7 +48,7 @@ def dirs(tmp_path_factory):
     splits = {"train": ["101", "106"], "validation": ["118"], "test": ["100", "202"]}
     (processed / "splits.json").write_text(json.dumps({"records": splits}), encoding="utf-8")
     n_v = int(np.sum(y[:40] == CLASS_TO_INDEX["V"]))
-    for method in ("simulator", "dcgan", "simdcgan"):
+    for method in ("simulator", "dcgan", "simdcgan", "simdcgan_warmup"):
         beats = minmax_to_sim_range(rng.normal(size=(2 * n_v, 216)).astype(np.float32))
         save_synthetic(synthetic, method, "V", 0, beats, n_train=n_v, source="test")
     return processed, synthetic, n_v
@@ -87,7 +87,9 @@ def test_real_binary_labels_one_class_against_the_rest(dirs):
     assert set(records) == {"101", "106"}
 
 
-@pytest.mark.parametrize("setup", ["oversample", "simulator", "dcgan", "simdcgan"])
+@pytest.mark.parametrize(
+    "setup", ["oversample", "simulator", "dcgan", "simdcgan", "simdcgan_warmup"]
+)
 @pytest.mark.parametrize("amount", [0.5, 1.0, 2.0])
 def test_augmented_sets_add_the_right_number_of_positive_beats(dirs, setup, amount):
     processed, synthetic, n_v = dirs
@@ -149,3 +151,11 @@ def test_unknown_setup_is_rejected(dirs):
     processed, synthetic, _ = dirs
     with pytest.raises(ValueError, match="setup"):
         added_beats(processed, synthetic, "V", "vae", 1.0, seed=0)
+
+
+def test_warmup_is_a_supplementary_method_only(tmp_path):
+    # The main experiments (default setups, train-on-synthetic) keep the original methods.
+    assert "simdcgan_warmup" not in METHODS and "simdcgan_warmup" in ALL_METHODS
+    beats = np.zeros((4, 216), dtype=np.float32)
+    with pytest.raises(ValueError, match="method"):
+        save_synthetic(tmp_path, "vae", "V", 0, beats, n_train=2, source="test")

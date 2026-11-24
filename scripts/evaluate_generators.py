@@ -7,9 +7,16 @@ Run from the repository root, after scripts/train_all.py:
 For each class and seed, it scores 2,000 beats from each source against the validation
 beats, using the same measures as training plus the near-copy rate:
 
-* ``dcgan`` and ``simdcgan``: the run's best checkpoint (checkpoints/<model>_s<seed>/...)
+* ``dcgan``, ``simdcgan`` (and ``simdcgan_warmup``): the run's best checkpoint
+  (checkpoints/<model>_s<seed>/...)
 * ``simulator``: ECGSYN beats from parameters drawn with the class's ParamKDE sampler
 * ``real``: real training beats (the reference row, computed once per class)
+
+``--models`` chooses the sources (default: simulator, dcgan, simdcgan). The supplementary
+warm-up generators (Phase 13) are evaluated into their own table, leaving the main one alone:
+
+    .venv/bin/python scripts/evaluate_generators.py --classes V --models simdcgan_warmup \\
+        --table outputs/tables/generator_eval_warmup.csv
 
 Every synthetic beat is rescaled per beat with ``minmax_to_sim_range``, exactly like real
 beats, before it is scored and saved.
@@ -17,7 +24,7 @@ beats, before it is scored and saved.
 Reads:  data/processed/{beats.npz, splits.json, param_samplers.npz}, checkpoints/
 Writes: data/synthetic/<method>/<class>_s<seed>.npz (2 × the class's training size)
         outputs/runs/<model>_s<seed>_<class>/final_eval.json
-        outputs/tables/generator_eval_per_seed.csv
+        outputs/tables/generator_eval_per_seed.csv (or --table)
 """
 
 import argparse
@@ -31,7 +38,7 @@ import torch
 
 from simheart.data.dataset import load_split
 from simheart.data.scaling import minmax_to_sim_range, sim_to_unit, unit_to_sim
-from simheart.data.synthetic import save_synthetic
+from simheart.data.synthetic import ALL_METHODS, METHODS, save_synthetic
 from simheart.evaluation import mean_pairwise_distance, mmd_rbf, near_copy_rate, nearest_distances
 from simheart.evaluation.physiology import physiology_metrics
 from simheart.models.gan import NOISE_DIM
@@ -80,6 +87,8 @@ def main() -> None:
     parser.add_argument("--classes", nargs="+", default=["S", "V", "F"])
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
     parser.add_argument("--n-eval", type=int, default=2000)
+    parser.add_argument("--models", nargs="+", default=list(METHODS), choices=ALL_METHODS)
+    parser.add_argument("--table", type=Path, default=TABLE)
     args = parser.parse_args()
 
     device = get_device()
@@ -110,13 +119,14 @@ def main() -> None:
             set_seed(1000 + seed)
             sources: dict[str, tuple[np.ndarray, str]] = {}
 
-            generator = torch.Generator(device=device).manual_seed(seed)
-            params, z0 = sampler.sample(n_make, generator)
-            with torch.no_grad():
-                simulated = sim(params, z0).cpu().numpy()
-            sources["simulator"] = (rescale(simulated), "ECGSYN with ParamKDE parameters")
+            if "simulator" in args.models:
+                generator = torch.Generator(device=device).manual_seed(seed)
+                params, z0 = sampler.sample(n_make, generator)
+                with torch.no_grad():
+                    simulated = sim(params, z0).cpu().numpy()
+                sources["simulator"] = (rescale(simulated), "ECGSYN with ParamKDE parameters")
 
-            for model in ("dcgan", "simdcgan"):
+            for model in (m for m in args.models if m != "simulator"):
                 checkpoint = CHECKPOINTS / f"{model}_s{seed}" / beat_type / "best.pt"
                 net = load_generator(checkpoint, device)
                 noise = torch.randn(n_make, NOISE_DIM, device=device)
@@ -141,12 +151,12 @@ def main() -> None:
                     flush=True,
                 )
 
-    TABLE.parent.mkdir(parents=True, exist_ok=True)
-    with open(TABLE, "w", newline="", encoding="utf-8") as f:
+    args.table.parent.mkdir(parents=True, exist_ok=True)
+    with open(args.table, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-    print(f"Saved {TABLE}")
+    print(f"Saved {args.table}")
 
 
 if __name__ == "__main__":

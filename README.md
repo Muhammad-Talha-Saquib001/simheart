@@ -60,7 +60,8 @@ After [setup](#setup) and [data preparation](#prepare-the-data), three commands 
 11. its summary and a reproducibility check;
 12. a training-reliability study: DCGAN, SimDCGAN and SimDCGAN with a warm-up of the Euler loss, V only, 10 seeds each;
 13. its failure rates and the warm-up's effect;
-14. the report package.
+14. to 17. a supplementary V augmentation with the warm-up generators (seeds 0–2): their evaluation and synthetic sets, augmentation, train-on-synthetic and a summary with confidence intervals on the same bootstrap replicates;
+18. the report package.
 
 Decisions that could otherwise be tuned on test data follow pre-set rules that use validation data only (`simheart.reporting`):
 - **Classifier settings:** the learning rate with the best validation AP, then the best epoch count at that rate.
