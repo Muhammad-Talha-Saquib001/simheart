@@ -33,7 +33,7 @@ import numpy as np  # noqa: E402
 from simheart.classification.bootstrap import bootstrap_metrics, interval  # noqa: E402
 from simheart.classification.datasets import real_binary  # noqa: E402
 from simheart.classification.metrics import PAPER_RECALL  # noqa: E402
-from simheart.reporting import mean_std  # noqa: E402
+from simheart.reporting import MAIN_SEEDS, mean_std  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPERIMENTS = ROOT / "outputs" / "experiments"
@@ -49,7 +49,12 @@ def load_scores(beat_type: str, results: list[dict]) -> tuple[dict, dict]:
     cells: dict[tuple, list[dict]] = defaultdict(list)
     for r in results:
         # Main setups only; scripts/summarize_warmup_augmentation.py covers the warm-up.
-        if r["experiment"] == "augment" and r["class"] == beat_type and r["setup"] in SETUPS:
+        if (
+            r["experiment"] == "augment"
+            and r["class"] == beat_type
+            and r["setup"] in SETUPS
+            and r["seed"] in MAIN_SEEDS
+        ):
             cells[(r["setup"], r["amount"])].append(r)
     scores, reported = {}, {}
     for cell, rows in sorted(cells.items(), key=lambda kv: (SETUPS.index(kv[0][0]), kv[0][1])):

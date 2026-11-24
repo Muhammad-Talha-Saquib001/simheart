@@ -2,6 +2,7 @@ import torch
 
 from simheart.simulator import MCSHARRY_PARAMS, TYPICAL_PARAMS, EcgSyn
 from simheart.simulator.fitting import (
+    ParamGaussian,
     ParamKDE,
     ParamSpace,
     fit_beats,
@@ -103,3 +104,16 @@ def test_samplers_save_and_load(tmp_path):
     torch.testing.assert_close(loaded.values, sampler.values)
     torch.testing.assert_close(loaded.bandwidth, sampler.bandwidth)
     assert loaded.space == SPACE
+
+
+def test_gaussian_sampler_uses_the_kde_values_mean_and_spread():
+    raw, z0 = fitted_set()
+    kde = ParamKDE.fit(raw, z0, SPACE, jitter=0.02)
+    gaussian = ParamGaussian.from_kde(kde)
+    torch.testing.assert_close(gaussian.mean, kde.values.mean(dim=0))
+    torch.testing.assert_close(gaussian.std, kde.values.std(dim=0))
+
+    params, z0_samples = gaussian.sample(5000, torch.Generator().manual_seed(5))
+    assert params.shape == (5000, 3, 5) and z0_samples.shape == (5000,)
+    assert_valid(params)  # the parameter space keeps every draw a valid beat
+    assert abs(z0_samples.mean() - gaussian.mean[15]) < 0.1 * gaussian.std[15] + 1e-6

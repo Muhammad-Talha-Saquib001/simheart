@@ -7,6 +7,8 @@ The two choice rules are fixed in advance and use validation data only, so the t
 * ``default_seeds``: which trained generator (seed) the user interface uses by default.
 """
 
+import csv
+import os
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from pathlib import Path
@@ -21,6 +23,10 @@ PAPER_TABLE_1 = {
 }
 
 # Phase 12 failure rule, fixed before the reliability runs (decision log §19).
+# Classifier seeds of the pre-registered main experiments. Later phases add seeds 3-9 to the
+# same results file; the main tables keep to these.
+MAIN_SEEDS: tuple[int, ...] = (0, 1, 2)
+
 FAILURE_MIN_DIVERSITY = 0.3
 FAILURE_MAX_HF_FRACTION = 0.10
 
@@ -142,3 +148,25 @@ def clopper_pearson(k: int, n: int, level: float = 0.95) -> tuple[float, float]:
     low = 0.0 if k == 0 else float(beta.ppf(alpha / 2, k, n - k + 1))
     high = 1.0 if k == n else float(beta.ppf(1 - alpha / 2, k + 1, n - k))
     return low, high
+
+
+def write_csv_atomic(path: str | Path, rows: Sequence[dict]) -> None:
+    """Write rows to a CSV via a temporary file, so a crash never leaves half a table."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fields = list(dict.fromkeys(k for row in rows for k in row))
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    os.replace(tmp, path)
+
+
+def save_figure_atomic(fig, path: str | Path, dpi: int = 130) -> None:
+    """Save a matplotlib figure via a temporary file (same format), then rename it."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.stem + ".tmp" + path.suffix)
+    fig.savefig(tmp, dpi=dpi)
+    os.replace(tmp, path)

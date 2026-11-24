@@ -21,7 +21,13 @@ import torch
 from torch import nn
 
 from simheart.evaluation.metrics import mean_pairwise_distance, mmd_rbf, nearest_distances
-from simheart.models.gan import NOISE_DIM, Discriminator, Generator, init_weights
+from simheart.models.gan import (
+    NOISE_DIM,
+    Discriminator,
+    Generator,
+    add_spectral_norm,
+    init_weights,
+)
 
 ExtraLoss = Callable[[torch.Tensor], torch.Tensor]
 ExtraMetrics = Callable[[torch.Tensor], dict[str, float]]
@@ -42,6 +48,11 @@ class GanTrainConfig:
     # Warm-up for the extra generator loss: its weight rises linearly from 0 to 1 over the
     # first ``extra_warmup`` iterations (0 = full weight from the start, the default).
     extra_warmup: int = 0
+    # Small-class stabilisation (Phase 16), both off by default: spectral normalisation in
+    # the discriminator, and the discriminator's target for real beats (0.9 = one-sided
+    # label smoothing; the generator's target stays 1).
+    discriminator_spectral_norm: bool = False
+    real_label: float = 1.0
 
 
 def warmup_factor(iteration: int, warmup: int) -> float:
@@ -98,9 +109,12 @@ def train_gan(
     real_train = torch.as_tensor(beats_train, dtype=torch.float32, device=device)
     real_val = torch.as_tensor(beats_val, dtype=torch.float32, device=device)
 
-    generator, discriminator = Generator().to(device), Discriminator().to(device)
+    generator = Generator().to(device)
+    discriminator = Discriminator(config.discriminator_spectral_norm).to(device)
     generator.apply(init_weights)
     discriminator.apply(init_weights)
+    if config.discriminator_spectral_norm:  # after initialising, so G starts as without it
+        add_spectral_norm(discriminator)
     opt_g = torch.optim.Adam(generator.parameters(), lr=config.lr, betas=config.betas)
     opt_d = torch.optim.Adam(discriminator.parameters(), lr=config.lr, betas=config.betas)
     bce = nn.BCEWithLogitsLoss()
@@ -142,7 +156,7 @@ def train_gan(
         opt_d.zero_grad()
         logits_real = discriminator(real)
         logits_fake = discriminator(generator(noise(config.batch_size)).detach())
-        loss_d = bce(logits_real, ones) + bce(logits_fake, zeros)
+        loss_d = bce(logits_real, ones * config.real_label) + bce(logits_fake, zeros)
         loss_d.backward()
         opt_d.step()
 

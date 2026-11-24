@@ -22,6 +22,7 @@ import numpy as np
 from sklearn.metrics import precision_recall_curve
 
 from simheart.classification.datasets import real_binary
+from simheart.reporting import MAIN_SEEDS
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "outputs" / "experiments"
@@ -44,7 +45,11 @@ def cell(values: list[float]) -> str:
 def main() -> None:
     rows = [json.loads(line) for line in (OUT / "results.jsonl").read_text().splitlines()]
     # Main setups only; the supplementary warm-up setup has its own summary (Phase 13).
-    augment = [r for r in rows if r["experiment"] == "augment" and r["setup"] in SETUPS]
+    augment = [
+        r
+        for r in rows
+        if r["experiment"] == "augment" and r["setup"] in SETUPS and r["seed"] in MAIN_SEEDS
+    ]
     groups: dict[tuple, list[dict]] = defaultdict(list)
     for r in augment:
         groups[(r["class"], r["setup"], r["amount"])].append(r)
@@ -89,7 +94,7 @@ def main() -> None:
                 ]
             )
 
-    tstr = [r for r in rows if r["experiment"] == "tstr"]
+    tstr = [r for r in rows if r["experiment"] == "tstr" and r["seed"] in MAIN_SEEDS]
     if tstr:
         with open(TABLES / "tstr_results.csv", "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)

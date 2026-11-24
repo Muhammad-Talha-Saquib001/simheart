@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from simheart.reporting import (
@@ -93,3 +95,19 @@ def test_clopper_pearson_matches_known_values():
     low, high = clopper_pearson(1, 10)
     assert low == pytest.approx(0.0025, abs=1e-4) and high == pytest.approx(0.4450, abs=1e-4)
     assert clopper_pearson(10, 10)[1] == 1.0
+
+
+def test_main_seeds_match_the_classifier_config():
+    from simheart.reporting import MAIN_SEEDS
+    from simheart.utils import load_config
+
+    root = Path(__file__).resolve().parents[1]
+    assert list(MAIN_SEEDS) == load_config(root / "configs" / "classifier.yaml")["seeds"]
+
+
+def test_atomic_csv_writer_leaves_no_temporary_file(tmp_path):
+    from simheart.reporting import write_csv_atomic
+
+    write_csv_atomic(tmp_path / "t.csv", [{"a": 1, "b": 2}, {"a": 3, "c": 4}])
+    assert (tmp_path / "t.csv").read_text().splitlines() == ["a,b,c", "1,2,", "3,,4"]
+    assert [p.name for p in tmp_path.iterdir()] == ["t.csv"]

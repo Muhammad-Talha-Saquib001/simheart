@@ -2,7 +2,7 @@
 
 Run from the repository root, after scripts/train_all.py has finished all 18 runs:
 
-    .venv/bin/python scripts/reproduce_results.py            # all steps (~3-3.5 h on a GPU)
+    .venv/bin/python scripts/reproduce_results.py            # all steps (~10-11 h on a GPU)
     .venv/bin/python scripts/reproduce_results.py --check    # only check training is complete
 
 Steps (each a separate process; the script stops at the first failure):
@@ -24,11 +24,18 @@ Steps (each a separate process; the script stops at the first failure):
    15. run_augmentation.py (V, warm-up)       supplementary augmentation (resumable)
    16. run_augmentation.py --tstr (V, warm-up)  supplementary train-on-synthetic
    17. summarize_warmup_augmentation.py       its tables, intervals and figure (CPU)
-   18. build_report_assets.py    outputs/report/ (tables, figures, results.md)
+   18-21. V over 10 generator seeds: evaluate seeds 3-9, augmentation, train-on-synthetic,
+          summary (Phase 14)
+   22-26. Euler-loss ablation on V: 40 GAN runs (~4.3 h), evaluation, augmentation at 1x,
+          train-on-synthetic, summary (Phase 15)
+   27-29. Small-class stabilisation (S, F): 12 GAN runs (~1.3 h), evaluation, summary
+          (Phase 16)
+   30. build_report_assets.py    outputs/report/ (tables, figures, results.md)
 
-Steps 1-5, 9, 14 and 17 are skipped when their output already exists (use --redo to repeat
-them); steps 6, 7, 10, 12, 15 and 16 skip finished models themselves; 8, 11, 13 and 18
-always run.
+Steps whose output is named in STEPS are skipped when it exists (use --redo to repeat them);
+training and classifier steps skip finished models themselves; the rest always run. For a
+long unattended run of the Phase 14-16 steps, use scripts/run_queue.py (step markers, a
+memory watchdog and a progress log).
 """
 
 import argparse
@@ -41,6 +48,9 @@ from simheart.reporting import missing_runs
 
 ROOT = Path(__file__).resolve().parents[1]
 PILOT_CHOICE = "outputs/experiments/pilot_choice.json"
+SEEDS_3_9 = [str(s) for s in range(3, 10)]
+SEEDS_0_9 = [str(s) for s in range(10)]
+ABLATION = ["abl_weight_low", "abl_weight_high", "abl_best_of_k", "abl_gaussian"]
 
 # (description, script arguments, output that marks the step as done or None = always run)
 STEPS: list[tuple[str, list[str], str | None]] = [
@@ -128,8 +138,165 @@ STEPS: list[tuple[str, list[str], str | None]] = [
         ["summarize_warmup_augmentation.py"],
         "outputs/tables/warmup_comparisons.csv",
     ),
+    # Phase 14: the main V comparison over 10 generator seeds (decision log §21).
+    (
+        "V ten seeds: evaluate generators",
+        [
+            "evaluate_generators.py",
+            "--classes",
+            "V",
+            "--seeds",
+            *SEEDS_3_9,
+            "--models",
+            "simulator",
+            "dcgan",
+            "simdcgan",
+            "simdcgan_warmup",
+            "--table",
+            "outputs/tables/generator_eval_v_seeds3_9.csv",
+        ],
+        "outputs/tables/generator_eval_v_seeds3_9.csv",
+    ),  # fmt: skip
+    (
+        "V ten seeds: augmentation",
+        [
+            "run_augmentation.py",
+            "--classes",
+            "V",
+            "--seeds",
+            *SEEDS_3_9,
+            "--setups",
+            "oversample",
+            "simulator",
+            "dcgan",
+            "simdcgan",
+            "simdcgan_warmup",
+            "--settings",
+            PILOT_CHOICE,
+        ],
+        None,
+    ),  # fmt: skip
+    (
+        "V ten seeds: train on synthetic",
+        [
+            "run_augmentation.py",
+            "--tstr",
+            "--classes",
+            "V",
+            "--seeds",
+            *SEEDS_3_9,
+            "--setups",
+            "simulator",
+            "dcgan",
+            "simdcgan",
+            "simdcgan_warmup",
+            "--settings",
+            PILOT_CHOICE,
+        ],
+        None,
+    ),  # fmt: skip
+    (
+        "V ten seeds: summary",
+        ["summarize_v_ten_seeds.py"],
+        "outputs/tables/v_ten_seeds_comparisons.csv",
+    ),  # fmt: skip
+    # Phase 15: Euler-loss ablation on V (decision log §22).
+    (
+        "Ablation: training",
+        ["train_all.py", "--classes", "V", "--models", *ABLATION, "--seeds", *SEEDS_0_9],
+        None,
+    ),
+    (
+        "Ablation: evaluate generators",
+        [
+            "evaluate_generators.py",
+            "--classes",
+            "V",
+            "--seeds",
+            *SEEDS_0_9,
+            "--models",
+            *ABLATION,
+            "--table",
+            "outputs/tables/generator_eval_ablation.csv",
+        ],
+        "outputs/tables/generator_eval_ablation.csv",
+    ),  # fmt: skip
+    (
+        "Ablation: augmentation",
+        [
+            "run_augmentation.py",
+            "--classes",
+            "V",
+            "--seeds",
+            *SEEDS_0_9,
+            "--setups",
+            *ABLATION,
+            "--amounts",
+            "1.0",
+            "--settings",
+            PILOT_CHOICE,
+        ],
+        None,
+    ),  # fmt: skip
+    (
+        "Ablation: train on synthetic",
+        [
+            "run_augmentation.py",
+            "--tstr",
+            "--classes",
+            "V",
+            "--seeds",
+            *SEEDS_0_9,
+            "--setups",
+            *ABLATION,
+            "--settings",
+            PILOT_CHOICE,
+        ],
+        None,
+    ),  # fmt: skip
+    ("Ablation: summary", ["summarize_ablation.py"], "outputs/tables/ablation_comparisons.csv"),
+    # Phase 16: small-class GAN stabilisation (decision log §23).
+    (
+        "Stabilisation: training",
+        [
+            "train_all.py",
+            "--classes",
+            "S",
+            "F",
+            "--models",
+            "dcgan_sn",
+            "simdcgan_sn",
+            "--seeds",
+            "0",
+            "1",
+            "2",
+        ],
+        None,
+    ),  # fmt: skip
+    (
+        "Stabilisation: evaluate generators",
+        [
+            "evaluate_generators.py",
+            "--classes",
+            "S",
+            "F",
+            "--seeds",
+            "0",
+            "1",
+            "2",
+            "--models",
+            "dcgan_sn",
+            "simdcgan_sn",
+            "--table",
+            "outputs/tables/generator_eval_sn.csv",
+        ],
+        "outputs/tables/generator_eval_sn.csv",
+    ),  # fmt: skip
+    ("Stabilisation: summary", ["summarize_small_class_fix.py"], None),
     ("Report assets", ["build_report_assets.py"], None),
 ]
+# The first step of the Phase 14-16 batch (scripts/run_queue.py runs from here).
+FIRST_BATCH_STEP = "V ten seeds: evaluate generators"
 
 
 def main() -> None:

@@ -1,0 +1,40 @@
+# Phase 15 ablation (abl_weight_low): identical to simdcgan_warmup.yaml except the Euler weight λ = 0.0012 (¼×).
+# Decision log §22.
+# SimDCGAN with a warm-up of the Euler loss (Phase 12, training reliability study).
+# Identical to simdcgan.yaml except `model` and `euler.warmup_iterations`.
+
+model: abl_weight_low
+beat_type: V                     # S, V or F (override with --beat-type)
+
+processed_dir: data/processed
+checkpoints_dir: checkpoints     # checkpoints/<model>/<beat_type>/{best,last}.pt
+runs_dir: outputs/runs           # outputs/runs/<model>_<beat_type>/ logs and figures
+samplers_path: data/processed/param_samplers.npz   # for the physiology metric (Phase 3)
+
+seed: 0
+
+training:
+  iterations: 5000               # discriminator updates (override with --iterations)
+  batch_size: 64
+  lr: 0.0002
+  betas: [0.5, 0.999]
+  g_steps_per_d_step: 2          # SimGANs paper: two generator updates per discriminator update
+  log_every: 10
+  eval_every: 250                # MMD / diversity / copy check against validation beats
+  snapshot_every: 500            # fixed-noise samples for the progress figure
+  n_eval: 512
+  n_snapshot: 16
+
+euler:
+  # Weight λ on the per-beat Euler distance (summed over the 215 steps, as in the paper).
+  # The paper's text implies λ = 1; the authors' code (a mean over steps) equals λ ≈ 1/215.
+  # Chosen by the Phase 5 sweep on V: 0.0047 (≈ 1/215) trains well; 0.03 and 1.0 kept the
+  # generator collapsed to a flat line (see docs/decision-log.md).
+  weight: 0.0012                 # ablation: ¼ of 0.0047
+  # random: one sampled parameter set per beat (the paper's formula).
+  # best_of_k: the smallest distance over k sampled sets (the paper's stated intuition).
+  pairing: random
+  k: 16
+  # The weight rises linearly from 0 to `weight` over the first 1,000 iterations. One value,
+  # fixed before any run (docs/decision-log.md §19).
+  warmup_iterations: 1000

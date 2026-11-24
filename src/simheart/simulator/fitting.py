@@ -178,6 +178,35 @@ class ParamKDE:
         return self.space.to_params(drawn[:, :15].reshape(n, 3, 5)), drawn[:, 15]
 
 
+@dataclass
+class ParamGaussian:
+    """The SimGANs paper's sampler: an independent Gaussian per raw parameter (and z0).
+
+    Built from the same fitted values as a :class:`ParamKDE` (mean and sd of each raw
+    parameter over the class). Used only for the Phase 15 ablation; it creates unrealistic
+    parameter combinations (decision log §5), which is what the ablation tests.
+    """
+
+    mean: torch.Tensor  # [16]
+    std: torch.Tensor  # [16]
+    space: ParamSpace
+
+    @classmethod
+    def from_kde(cls, kde: ParamKDE) -> "ParamGaussian":
+        return cls(kde.values.mean(dim=0), kde.values.std(dim=0), kde.space)
+
+    def to(self, device: torch.device | str) -> "ParamGaussian":
+        return ParamGaussian(self.mean.to(device), self.std.to(device), self.space)
+
+    def sample(
+        self, n: int, generator: torch.Generator | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Draw n parameter sets: ([n, 3, 5] valid parameters, [n] z0)."""
+        noise = torch.randn(n, 16, generator=generator, device=self.mean.device)
+        drawn = self.mean + self.std * noise
+        return self.space.to_params(drawn[:, :15].reshape(n, 3, 5)), drawn[:, 15]
+
+
 def save_samplers(path: str | Path, samplers: dict[str, ParamKDE]) -> None:
     """Save one sampler per class to a single .npz file."""
     spaces = {s.space for s in samplers.values()}

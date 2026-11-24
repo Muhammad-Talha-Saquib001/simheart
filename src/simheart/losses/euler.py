@@ -24,7 +24,9 @@ from torch import nn
 
 from simheart.data.scaling import unit_to_sim
 from simheart.simulator.ecgsyn import EcgSyn
-from simheart.simulator.fitting import ParamKDE
+from simheart.simulator.fitting import ParamGaussian, ParamKDE
+
+Sampler = ParamKDE | ParamGaussian
 
 PAIRINGS = ("random", "best_of_k")
 
@@ -38,7 +40,7 @@ def euler_distance(beats_sim: torch.Tensor, params: torch.Tensor, sim: EcgSyn) -
 
 def best_euler_distance(
     beats_sim: torch.Tensor,
-    sampler: ParamKDE,
+    sampler: Sampler,
     sim: EcgSyn,
     k: int,
     generator: torch.Generator | None = None,
@@ -56,7 +58,7 @@ class EulerLoss(nn.Module):
     def __init__(
         self,
         sim: EcgSyn,
-        sampler: ParamKDE,
+        sampler: Sampler,
         weight: float,
         pairing: str = "random",
         k: int = 16,

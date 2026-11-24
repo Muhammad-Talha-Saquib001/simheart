@@ -18,7 +18,7 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 
-from simheart.reporting import PAPER_TABLE_1, markdown_table, mean_std
+from simheart.reporting import MAIN_SEEDS, PAPER_TABLE_1, markdown_table, mean_std
 
 ROOT = Path(__file__).resolve().parents[1]
 TABLES, FIGURES = ROOT / "outputs" / "tables", ROOT / "outputs" / "figures"
@@ -375,7 +375,7 @@ def main() -> None:
         results = [json.loads(x) for x in (EXPERIMENTS / "results.jsonl").read_text().splitlines()]
         # Main setups only; the supplementary warm-up rows are reported from their own
         # tables (section 4d).
-        results = [r for r in results if r["setup"] in SETUPS]
+        results = [r for r in results if r["setup"] in SETUPS and r["seed"] in MAIN_SEEDS]
     sections: list[str] = [
         "# SimHeart — Results",
         "",

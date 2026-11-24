@@ -24,6 +24,14 @@ MODELS = {
     "dcgan": "configs/dcgan.yaml",
     "simdcgan": "configs/simdcgan.yaml",
     "simdcgan_warmup": "configs/simdcgan_warmup.yaml",  # Phase 12 (V only)
+    # Phase 15 ablation (V only), each one change from simdcgan_warmup (decision log §22)
+    "abl_weight_low": "configs/ablation/weight_low.yaml",
+    "abl_weight_high": "configs/ablation/weight_high.yaml",
+    "abl_best_of_k": "configs/ablation/best_of_k.yaml",
+    "abl_gaussian": "configs/ablation/gaussian.yaml",
+    # Phase 16 small-class stabilisation (S, F), decision log §23
+    "dcgan_sn": "configs/dcgan_sn.yaml",
+    "simdcgan_sn": "configs/simdcgan_sn.yaml",
 }
 
 

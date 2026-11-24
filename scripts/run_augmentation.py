@@ -25,6 +25,7 @@ Writes: outputs/experiments/{results.jsonl, base/, scores/}
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
@@ -85,12 +86,43 @@ def evaluate(state: dict, beat_type: str, sets: dict, device: torch.device) -> t
     return result, scores
 
 
+def read_results(path: Path) -> list[dict]:
+    """Rows of results.jsonl. A cut-off last line (a crash while writing) is moved to
+    results.jsonl.partial and dropped, so that model is simply trained again."""
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    rows = []
+    for i, line in enumerate(lines):
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            if i != len(lines) - 1:
+                raise SystemExit(f"{path}: line {i + 1} is corrupt (not the last line)") from None
+            with open(path.with_suffix(".jsonl.partial"), "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+            good = "".join(kept + "\n" for kept in lines[:-1])  # byte-identical
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(good, encoding="utf-8")
+            os.replace(tmp, path)
+            print(f"Repaired {path}: dropped a cut-off last line (kept in .partial)", flush=True)
+            return rows
+    if text and not text.endswith("\n") and rows:  # complete JSON but no newline yet
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("\n")
+    return rows
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tstr", action="store_true", help="run train-on-synthetic instead")
     parser.add_argument("--classes", nargs="+")
     parser.add_argument("--seeds", nargs="+", type=int)
     parser.add_argument("--settings", type=Path, help="pilot_choice.json (overrides training)")
+    parser.add_argument(
+        "--amounts", nargs="+", type=float, help="amounts to run instead of the configured ones"
+    )
     parser.add_argument(
         "--setups",
         nargs="+",
@@ -114,9 +146,7 @@ def main() -> None:
     (out / "base").mkdir(parents=True, exist_ok=True)
     (out / "scores").mkdir(parents=True, exist_ok=True)
     results_path = out / "results.jsonl"
-    done = set()
-    if results_path.exists():
-        done = {json.loads(line)["key"] for line in results_path.read_text().splitlines()}
+    done = {r["key"] for r in read_results(results_path)}
     training = dict(config["training"])
     if args.settings:
         choice = json.loads(args.settings.read_text(encoding="utf-8"))
@@ -126,9 +156,18 @@ def main() -> None:
     device = get_device()
 
     def record(row: dict, scores: dict) -> None:
-        np.savez(out / "scores" / f"{row['key'].replace('|', '_')}.npz", **scores)
+        # Scores first, then the result line, each written so a crash can't leave a
+        # half-written file: a model without its line is simply retrained next time.
+        score_path = out / "scores" / f"{row['key'].replace('|', '_')}.npz"
+        with open(score_path.with_suffix(".tmp"), "wb") as f:
+            np.savez(f, **scores)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(score_path.with_suffix(".tmp"), score_path)
         with open(results_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(row) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
         print(
             f"{row['key']}: AP {row['ap_test']:.3f} (strict {row['ap_test_strict']:.3f}), "
             f"{row['minutes']:.1f} min",
@@ -155,7 +194,8 @@ def main() -> None:
             else:
                 setups = args.setups or config["setups"]
                 jobs = [("augment", "real", 0.0)]
-                jobs += [("augment", s, a) for s in setups for a in config["amounts"]]
+                amounts = args.amounts or config["amounts"]
+                jobs += [("augment", s, a) for s in setups for a in amounts]
 
             base_path = out / "base" / f"{beat_type}_s{seed}.pt"
             if not args.tstr and not base_path.exists():
@@ -163,7 +203,8 @@ def main() -> None:
                 began = time.time()
                 x, y = augmented_training_set(processed, synthetic, beat_type, "real", 0, seed)
                 state, _ = train_classifier(x, y, settings.base_epochs, settings, device, seed=seed)
-                torch.save(state, base_path)
+                torch.save(state, base_path.with_suffix(".tmp"))
+                os.replace(base_path.with_suffix(".tmp"), base_path)
                 result, scores = evaluate(state, beat_type, sets, device)
                 record(
                     {

@@ -155,7 +155,10 @@ def main() -> None:
             (
                 r
                 for r in results
-                if r["experiment"] == "tstr" and r["class"] == BEAT_TYPE and r["setup"] == method
+                if r["experiment"] == "tstr"
+                and r["class"] == BEAT_TYPE
+                and r["setup"] == method
+                and r["seed"] in SEEDS
             ),
             key=lambda r: r["seed"],
         )

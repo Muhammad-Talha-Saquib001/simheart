@@ -57,15 +57,19 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    """Heartbeat [B, 1, 216] -> logit [B] (real if positive)."""
+    """Heartbeat [B, 1, 216] -> logit [B] (real if positive).
 
-    def __init__(self) -> None:
+    With ``spectral_norm=True`` (Phase 16) the batch normalisation is left out; call
+    :func:`add_spectral_norm` after initialising the weights to normalise every convolution.
+    """
+
+    def __init__(self, spectral_norm: bool = False) -> None:
         super().__init__()
         layers: list[nn.Module] = []
         last = len(_DISCRIMINATOR_LAYERS) - 1
         for i, (c_in, c_out, k, s, p) in enumerate(_DISCRIMINATOR_LAYERS):
             layers.append(nn.Conv1d(c_in, c_out, k, s, p, bias=False))
-            if 0 < i < last:
+            if 0 < i < last and not spectral_norm:
                 layers.append(nn.BatchNorm1d(c_out))
             if i != last:
                 layers.append(nn.LeakyReLU(0.2, inplace=True))
@@ -73,6 +77,14 @@ class Discriminator(nn.Module):
 
     def forward(self, beats: torch.Tensor) -> torch.Tensor:
         return self.net(beats.view(-1, 1, BEAT_LENGTH)).view(-1)
+
+
+def add_spectral_norm(discriminator: Discriminator) -> Discriminator:
+    """Wrap every convolution in spectral normalisation (largest singular value 1)."""
+    for module in discriminator.net:
+        if isinstance(module, nn.Conv1d):
+            nn.utils.parametrizations.spectral_norm(module)
+    return discriminator
 
 
 def init_weights(module: nn.Module) -> None:

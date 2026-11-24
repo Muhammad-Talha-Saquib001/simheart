@@ -27,7 +27,7 @@ from simheart.evaluation.physiology import physiology_metrics
 from simheart.losses.euler import PAIRINGS, EulerLoss
 from simheart.models.gan import NOISE_DIM
 from simheart.simulator import EcgSyn
-from simheart.simulator.fitting import load_samplers
+from simheart.simulator.fitting import ParamGaussian, load_samplers
 from simheart.training.gan import GanTrainConfig, generate, load_generator, train_gan
 from simheart.utils import get_device, load_config, set_seed
 
@@ -213,10 +213,19 @@ def main() -> None:
     metrics = physiology_metrics(sim, sampler, torch.as_tensor(beats_val, device=device))
     euler_loss = None
     if euler["weight"] > 0:
+        # The physiology metric above always uses the KDE sampler; the Phase 15 ablation can
+        # swap the Euler loss's own sampler for the paper's Gaussian (euler.sampler).
+        euler.setdefault("sampler", "kde")
+        if euler["sampler"] not in ("kde", "gaussian"):
+            raise ValueError(f"euler.sampler must be kde or gaussian, got {euler['sampler']!r}")
+        loss_sampler = sampler if euler["sampler"] == "kde" else ParamGaussian.from_kde(sampler)
         euler_loss = EulerLoss(
-            sim, sampler, euler["weight"], euler.get("pairing", "random"), euler.get("k", 16)
+            sim, loss_sampler, euler["weight"], euler.get("pairing", "random"), euler.get("k", 16)
         )
-        print(f"Euler loss: weight {euler['weight']}, pairing {euler_loss.pairing}")
+        print(
+            f"Euler loss: weight {euler['weight']}, pairing {euler_loss.pairing}, "
+            f"sampler {euler['sampler']}, warm-up {train_config.extra_warmup}"
+        )
 
     began = time.time()
     result = train_gan(

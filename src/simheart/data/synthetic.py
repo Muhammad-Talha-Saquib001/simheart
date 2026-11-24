@@ -22,7 +22,15 @@ from simheart.data.labels import CLASS_TO_INDEX
 METHODS: tuple[str, ...] = ("simulator", "dcgan", "simdcgan")
 # Supplementary methods (Phase 13): stored and loaded like the others, but not part of the
 # main experiments, so default commands and tables use METHODS only.
-EXTRA_METHODS: tuple[str, ...] = ("simdcgan_warmup",)
+EXTRA_METHODS: tuple[str, ...] = (
+    "simdcgan_warmup",  # Phase 12-13
+    "abl_weight_low",  # Phase 15 ablation (decision log §22)
+    "abl_weight_high",
+    "abl_best_of_k",
+    "abl_gaussian",
+    "dcgan_sn",  # Phase 16 small-class stabilisation (decision log §23)
+    "simdcgan_sn",
+)
 ALL_METHODS: tuple[str, ...] = (*METHODS, *EXTRA_METHODS)
 
 
