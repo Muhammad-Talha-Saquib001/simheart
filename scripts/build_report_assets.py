@@ -124,7 +124,77 @@ INTERPRETATION = {
         "not for three generators trained the same way with a warm-up; it depends on the "
         "particular generators rather than on the Euler loss alone. The overall conclusion "
         "is unchanged and stronger: no synthetic source clearly improves V detection over "
-        "real data alone. Three seeds, V only."
+        "real data alone. Three seeds, V only; section 4e repeats the comparison with 10 "
+        "generators per model."
+    ),
+    "ten_seeds": (
+        "**Interpretation** (written after the run of 24 November 2026). *Primary "
+        "comparisons (V, 1x, 10 generators per model):* SimDCGAN beats DCGAN by +0.029 AP "
+        "[+0.004, +0.079], above 0 in 99.5 % of resamples and higher in 9 of 10 seed pairs. "
+        "With three generators this interval just reached 0 (section 4c); with ten it "
+        "excludes 0, and the same holds at 2x (+0.023 [+0.003, +0.053], 9/10). SimDCGAN "
+        "against the control gives +0.009 [-0.007, +0.047], higher in only 6 of 10 seeds, so "
+        "there is still **no evidence that any synthetic source improves on real data "
+        "alone**. DCGAN beats lower AP at every amount (-0.016 to -0.025, intervals below 0, "
+        "3/10 seeds above the control), and so do warm-up SimDCGAN beats (-0.010 to -0.015, "
+        "intervals below 0, 2/10 seeds above). *Where SimDCGAN's edge comes from:* the six "
+        "failed plain SimDCGAN generators (noise-like beats, MMD about 0.6) change AP by "
+        "+0.015 on average (5 of 6 above the control); the four that work give -0.001. "
+        "Realistic synthetic V beats tend to hurt slightly (DCGAN -0.021, warm-up -0.012, "
+        "working SimDCGAN -0.001), while beats the classifier can easily tell apart do no "
+        "harm. Generator quality does not predict the gain: Spearman ρ for MMD is 0.16 over "
+        "all 30 generators (p = 0.40) and -0.20 over the 24 working ones (p = 0.34); for the "
+        "Euler score 0.36 (p = 0.05, driven by the failed runs, which have both high Euler "
+        "scores and positive gains) and 0.07 among working ones (p = 0.74). *What this means "
+        "for the report:* 'SimDCGAN beats DCGAN as augmentation' is now well supported, but "
+        "it means SimDCGAN beats are *safer to add*, not that the Euler loss makes beats "
+        "more useful: the safest SimDCGAN generators are the ones that failed. The "
+        "mechanism (why realistic synthetic beats hurt) was not tested. *Train on "
+        "synthetic* confirms the reliability picture: every DCGAN and warm-up generator "
+        "works (AP 0.86 ± 0.05 and 0.83 ± 0.07), while the six failed plain SimDCGAN "
+        "generators score 0.03-0.16, leaving 0.42 ± 0.40."
+    ),
+    "ablation": (
+        "**Interpretation** (written after the run of 24 November 2026; all comparisons "
+        "descriptive). *Reliability:* with the warm-up kept, no change breaks training "
+        "badly: 0 of 10 failures for the reference, ¼× weight and best-of-16 pairing, 1 of "
+        "10 for 4× weight (seed 4) and the Gaussian sampler (seed 2); every interval "
+        "overlaps (0-31 % against 0.3-45 %). *Generator quality:* MMD is the same for all "
+        "five (0.103-0.112, spreads 0.011-0.020). The Euler weight moves the Euler score in "
+        "the expected direction: 10.3 ± 2.6 at ¼×, 7.6 ± 0.9 at our value, 6.2 ± 0.8 at 4×, "
+        "so the loss does what it is meant to do, at no cost to MMD. Best-of-16 pairing "
+        "gives 11.1 ± 10.5 only because of one generator (seed 3, 42.3; the other nine "
+        "6.3-9.1). The paper's Gaussian sampler gives 7.3 ± 1.4, level with our KDE. "
+        "*Augmentation (1x):* every variant lies within 0.01 AP of the reference and none "
+        "is clearly above the control (all intervals reach or sit below 0). Best-of-16 is "
+        "the only difference to the reference whose interval excludes 0 (+0.008 [+0.002, "
+        "+0.018], 8/10 seeds), which is small and is one of 8 descriptive intervals. *Train "
+        "on synthetic:* the two failed runs give AP 0.12 (4×) and 0.03 (Gaussian); the "
+        "working generators of every variant score 0.69-0.93 (means: reference 0.83, ¼× "
+        "0.88, best-of-16 0.90). *What this means:* our "
+        "choices (λ = 0.0047, the paper's random pairing, the KDE sampler instead of the "
+        "paper's Gaussian) are not what decides the results; within a 16-fold range of the "
+        "weight, the Euler loss changes physiology scores, not realism or augmentation. The "
+        "KDE deviation (decision log §5) does not change the conclusions. Variants without "
+        "the warm-up were not tested."
+    ),
+    "stabilisation": (
+        "**Interpretation** (written after the run of 24 November 2026; 3 seeds, "
+        "descriptive). *The package removes the imbalance it targets, and breaks the "
+        "generators:* late in training the discriminator's advantage drops from 0.72-0.78 to "
+        "0.00-0.06 in every run, but all 12 stabilised runs fail the Phase 12 rule (diversity "
+        "0.02-0.14 against 0.77-1.51 for the main runs) and their MMD rises from 0.10-0.13 to "
+        "0.57-0.64. The generators collapsed to a few near-identical beats, and the "
+        "discriminator no longer pushes them away from that (it scores real and generated "
+        "beats alike). The lower Euler score and high-frequency power of stabilised SimDCGAN "
+        "(S 1.2, F 3.8) come from that collapse onto a few smooth, physiologically plausible "
+        "beats, not from better generators. Stabilised DCGAN is worse on every measure. "
+        "*What this means:* spectral normalisation without batch normalisation plus label "
+        "smoothing weakens the discriminator too much for these small classes. The main S "
+        "and F generators, which keep a strong discriminator and rely on best-checkpoint "
+        "selection, stay the better choice. The two fixes were tested only together, at one "
+        "setting each (decision log §23); a milder variant (for example spectral "
+        "normalisation with batch normalisation kept) was not tested."
     ),
     "bootstrap": (
         "**Interpretation.** *Primary comparisons (V, 1x):* SimDCGAN beats DCGAN by +0.036 "
@@ -193,6 +263,164 @@ INTERPRETATION = {
         "differ in that range when the pipeline is rerun."
     ),
 }
+
+
+def interval_text(r: dict) -> str:
+    return f"{float(r['diff']):+.3f} [{float(r['low']):+.3f}, {float(r['high']):+.3f}]"
+
+
+def supplementary_tables(tables: dict, names: dict) -> None:
+    """Tables for sections 3c, 4e and 4f (Phases 14-16); empty strings if not run."""
+    for key in ("v10_cells", "v10_comparisons", "v10_tstr", "v10_correlations",
+                "ablation_summary", "ablation_comparisons", "small_class_fix"):  # fmt: skip
+        tables[key] = ""
+    seeds10 = " / ".join(str(s) for s in range(10))
+    if (TABLES / "v_ten_seeds_comparisons.csv").exists():
+        tables["v10_cells"] = markdown_table(
+            [
+                {
+                    "setup": names.get(r["setup"], r["setup"]),
+                    "amount": r["amount"],
+                    "ap": fmt(float(r["ap_test"]), float(r["ap_test_sd"])),
+                    "gain": f"{float(r['gain_vs_control']):+.3f}",
+                    "above": f"{r['seeds_above_control']}/10" if r["setup"] != "real" else "—",
+                }
+                for r in read_csv(TABLES / "v_ten_seeds_cells.csv")
+            ],
+            [
+                ("setup", "Setup"),
+                ("amount", "Added"),
+                ("ap", "Test AP (V, DS2), 10 seeds"),
+                ("gain", "Minus control"),
+                ("above", "Seeds above control"),
+            ],
+        )
+        tables["v10_comparisons"] = markdown_table(
+            [
+                {
+                    "comparison": ("**" if r["primary"] == "True" else "")
+                    + r["comparison"]
+                    + ("**" if r["primary"] == "True" else ""),
+                    "amount": r["amount"],
+                    "diff": interval_text(r),
+                    "above": f"{float(r['above_0']):.1%}",
+                    "wins": r["seed_wins"],
+                }
+                for r in read_csv(TABLES / "v_ten_seeds_comparisons.csv")
+            ],
+            [
+                ("comparison", "Comparison (bold = primary)"),
+                ("amount", "Added"),
+                ("diff", "AP difference [95 % interval]"),
+                ("above", "Replicates > 0"),
+                ("wins", "Seeds where the first is higher"),
+            ],
+        )
+        tables["v10_tstr"] = markdown_table(
+            [
+                {
+                    "method": names.get(r["method"], r["method"]),
+                    "seeds": " / ".join(f"{float(r[f'ap_test_s{s}']):.2f}" for s in range(10)),
+                    "ap": fmt(float(r["ap_test"]), float(r["ap_test_sd"])),
+                }
+                for r in read_csv(TABLES / "v_ten_seeds_tstr.csv")
+            ],
+            [
+                ("method", "Synthetic positives from"),
+                ("seeds", f"Seeds {seeds10}"),
+                ("ap", "Test AP"),
+            ],
+        )
+        tables["v10_correlations"] = markdown_table(
+            [
+                {
+                    "subset": r["subset"],
+                    "measure": "MMD" if r["measure"] == "mmd" else "Euler score",
+                    "n": r["n"],
+                    "rho": f"{float(r['rho']):+.2f}",
+                    "p": f"{float(r['p']):.2f}",
+                }
+                for r in read_csv(TABLES / "v_ten_seeds_correlations.csv")
+            ],
+            [
+                ("subset", "Generators"),
+                ("measure", "Quality measure"),
+                ("n", "n"),
+                ("rho", "Spearman ρ with AP gain at 1×"),
+                ("p", "p"),
+            ],
+        )
+    if (TABLES / "ablation_summary.csv").exists():
+        tables["ablation_summary"] = markdown_table(
+            [
+                {
+                    "variant": r["label"],
+                    "failed": f"{r['failed']}/{r['runs']} "
+                    f"({float(r['ci_low']):.0%}-{float(r['ci_high']):.0%})",
+                    "mmd": fmt(float(r["mmd"]), float(r["mmd_sd"])),
+                    "euler": fmt(
+                        float(r["euler_best_median"]), float(r["euler_best_median_sd"]), 1
+                    ),  # fmt: skip
+                    "ap": fmt(float(r["ap_1x"]), float(r["ap_1x_sd"])),
+                    "gain": f"{float(r['gain_vs_control']):+.3f}",
+                    "tstr": fmt(float(r["tstr_ap"]), float(r["tstr_ap_sd"]), 2),
+                }
+                for r in read_csv(TABLES / "ablation_summary.csv")
+            ],
+            [
+                ("variant", "Variant (all with warm-up)"),
+                ("failed", "Failed (95 % interval)"),
+                ("mmd", "MMD ↓ (successful)"),
+                ("euler", "Euler ↓ (successful)"),
+                ("ap", "Augment AP 1×"),
+                ("gain", "Minus control"),
+                ("tstr", "Train-on-synthetic AP"),
+            ],
+        )
+        tables["ablation_comparisons"] = markdown_table(
+            [
+                {
+                    "comparison": r["comparison"],
+                    "diff": interval_text(r),
+                    "above": f"{float(r['above_0']):.1%}",
+                    "wins": r["seed_wins"],
+                }
+                for r in read_csv(TABLES / "ablation_comparisons.csv")
+            ],
+            [
+                ("comparison", "Comparison (V, 1×)"),
+                ("diff", "AP difference [95 % interval]"),
+                ("above", "Replicates > 0"),
+                ("wins", "Seeds where the first is higher"),
+            ],
+        )
+    if (TABLES / "small_class_fix_summary.csv").exists():
+        pair = lambda r, k, d=3: (  # noqa: E731
+            f"{float(r[k + '_plain']):.{d}f} → {float(r[k + '_stabilised']):.{d}f}"
+        )
+        tables["small_class_fix"] = markdown_table(
+            [
+                {
+                    "class": r["class"],
+                    "model": r["model"],
+                    "mmd": pair(r, "mmd"),
+                    "div": pair(r, "diversity_ratio", 2),
+                    "euler": pair(r, "euler_best_median", 1),
+                    "hf": pair(r, "hf_fraction_median"),
+                    "d": pair(r, "d_advantage_late", 2),
+                }
+                for r in read_csv(TABLES / "small_class_fix_summary.csv")
+            ],
+            [
+                ("class", "Class"),
+                ("model", "Model"),
+                ("mmd", "MMD ↓"),
+                ("div", "Diversity"),
+                ("euler", "Euler ↓"),
+                ("hf", "Power > 40 Hz ↓"),
+                ("d", "D(real) − D(gen), late"),
+            ],
+        )
 
 
 def is_failed(beat_type: str, method: str, seed) -> bool:
@@ -682,6 +910,7 @@ def main() -> None:
             ("copy", "Near-copy rate"),
         ],
     )
+    supplementary_tables(tables, names)
     tables["tstr"] = markdown_table(
         tstr_rows,
         [
@@ -834,6 +1063,21 @@ def main() -> None:
         "",
         INTERPRETATION["reliability"],
         "",
+        "## 3c. Supplementary: stabilising the small-class GANs (S, F)",
+        "",
+        "Phase 16, not in the original plan. On S and F the discriminator overpowers the "
+        "generator (section 8). One package of two standard fixes, fixed before the runs "
+        "(decision log §23): spectral normalisation on every discriminator convolution "
+        "(replacing its batch normalisation) and one-sided label smoothing (target 0.9 for "
+        "real beats). Applied to DCGAN and plain SimDCGAN, S and F, seeds 0-2, each paired "
+        "with the main run of the same seed. Means over 3 seeds, main → stabilised; the last "
+        "column is the mean D(real) − D(generated) over the last 1,000 of 5,000 iterations "
+        "(1 = the discriminator is always right, 0 = it can't tell).",
+        "",
+        tables["small_class_fix"] or "*Not run (scripts/summarize_small_class_fix.py).*",
+        "",
+        INTERPRETATION["stabilisation"] if tables["small_class_fix"] else "",
+        "",
         "## 4. Augmentation: detection on unseen patients (DS2)",
         "",
         pilot_text,
@@ -923,6 +1167,49 @@ def main() -> None:
         "",
         INTERPRETATION["warmup"],
         "",
+        "## 4e. Supplementary: the V comparison over 10 generators per model",
+        "",
+        "Phase 14, not in the original plan. Sections 4 and 4c rest on 3 generators per "
+        "model, and section 4d showed that the result can depend on the particular "
+        "generators. Here the same classifiers are trained with the V generators of seeds "
+        "3-9 as well (Phase 12 trained 10 per model), so every setup has 10 seeds. Failed "
+        "generators are kept, as in the main rule. Seeds 0-2 are the main results "
+        "unchanged; the main tables above use only them. The two primary comparisons (V, "
+        "1x: SimDCGAN − DCGAN and SimDCGAN − control) were fixed before running (decision "
+        "log §21); the intervals use the same 2,000 patient resamples as section 4c "
+        "(checked: seeds 0-2 of the control reproduce section 4c exactly).",
+        "",
+        tables["v10_cells"] or "*Not run (scripts/summarize_v_ten_seeds.py).*",
+        "",
+        tables["v10_comparisons"],
+        "",
+        "Train on synthetic (V; real negatives, synthetic positives only):",
+        "",
+        tables["v10_tstr"],
+        "",
+        "Does generator quality predict the augmentation gain (descriptive)?",
+        "",
+        tables["v10_correlations"],
+        "",
+        INTERPRETATION["ten_seeds"] if tables["v10_cells"] else "",
+        "",
+        "## 4f. Supplementary: which parts of the Euler loss matter (V ablation)",
+        "",
+        "Phase 15, not in the original plan. Reference: SimDCGAN with the warm-up (section "
+        "3b). Each variant changes one thing and keeps the warm-up, 10 seeds each (decision "
+        "log §22): the Euler weight at ¼× and 4× our value (the paper is ambiguous about "
+        "it), the closest of 16 simulated beats instead of one random beat (the paper's text "
+        "against its formula), and the paper's diagonal Gaussian parameter sampler instead "
+        "of our KDE (our main deviation, section 7). Only the training loss changes; every "
+        "evaluation measure uses the KDE. Augmentation at 1× only. All comparisons are "
+        "descriptive.",
+        "",
+        tables["ablation_summary"] or "*Not run (scripts/summarize_ablation.py).*",
+        "",
+        tables["ablation_comparisons"],
+        "",
+        INTERPRETATION["ablation"] if tables["ablation_summary"] else "",
+        "",
         "## 5. Train on synthetic, test on real",
         "",
         tables["tstr"] or "*Not run.*",
@@ -956,7 +1243,9 @@ def main() -> None:
         "",
         "- F beats come almost entirely from one training patient (record 208).",
         "- On the small classes (S, F) the discriminator overpowers the generator for both "
-        "GANs; best-checkpoint selection keeps usable generators.",
+        "GANs; best-checkpoint selection keeps usable generators. One standard fix "
+        "(spectral normalisation plus label smoothing, section 3c) balanced the "
+        "discriminator but made every generator collapse; milder fixes were not tested.",
         "- Single lead (MLII), 216-sample windows; S windows contain part of the next beat.",
         "- Three seeds: differences are reported with their spread, without significance tests.",
         "- The validation set has 3 patients; one (record 118, right bundle branch block, "
@@ -970,8 +1259,12 @@ def main() -> None:
         "Over 10 seeds, SimDCGAN without warm-up failed on V in 6 runs (section 3b); the "
         "warm-up removed the failures (V only). The main augmentation results use "
         "generators without warm-up; augmentation with warm-up generators (section 4d) "
-        "lowered V detection, so the augmentation result depends on the particular "
-        "generators.",
+        "lowered V detection. Over 10 generators per model (section 4e) SimDCGAN stays "
+        "above DCGAN, but its advantage comes mostly from failed generators, whose beats do "
+        "no harm, while realistic synthetic beats tend to lower AP slightly.",
+        "- Supplementary sections 3c, 4e and 4f were added after the main results; their "
+        "designs were written down before running (decision log §21-§23). The ablation "
+        "(4f) covers V only, with the warm-up kept, and each change at one setting.",
         "- The standard split shares one patient between training and test (201/202); "
         "results without record 202 are reported alongside.",
         "",
@@ -991,6 +1284,9 @@ def main() -> None:
         "paper_protocol.png",
         "failure_study.png",
         "warmup_augmentation.png",
+        "v_ten_seeds.png",
+        "ablation.png",
+        "small_class_fix.png",
         "api_demo.png",
     ]:
         for path in FIGURES.glob(pattern):

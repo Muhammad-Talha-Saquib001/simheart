@@ -43,7 +43,7 @@ After [setup](#setup) and [data preparation](#prepare-the-data), three commands 
 ```bash
 .venv/bin/python scripts/fit_params.py          # simulator parameters per beat (~4 min, GPU)
 .venv/bin/python scripts/train_all.py           # DCGAN and SimDCGAN, S/V/F, 3 seeds (~2 h, GPU)
-.venv/bin/python scripts/reproduce_results.py   # everything after training (~3-3.5 h, GPU)
+.venv/bin/python scripts/reproduce_results.py   # everything after training (GPU; steps 18-29 alone take about 6.3 h)
 ```
 
 `reproduce_results.py` first checks that all 18 training runs finished (`--check` does only that). It then runs, in order:
@@ -61,7 +61,12 @@ After [setup](#setup) and [data preparation](#prepare-the-data), three commands 
 12. a training-reliability study: DCGAN, SimDCGAN and SimDCGAN with a warm-up of the Euler loss, V only, 10 seeds each;
 13. its failure rates and the warm-up's effect;
 14. to 17. a supplementary V augmentation with the warm-up generators (seeds 0–2): their evaluation and synthetic sets, augmentation, train-on-synthetic and a summary with confidence intervals on the same bootstrap replicates;
-18. the report package.
+18. to 21. the main V comparison repeated over 10 generators per model (seeds 3–9 added): their evaluation, augmentation, train-on-synthetic and a summary;
+22. to 26. an ablation of the Euler loss on V (weight ¼× and 4×, best-of-16 pairing, the paper's Gaussian sampler; 10 seeds each, all with the warm-up): training, evaluation, augmentation at 1×, train-on-synthetic and a summary;
+27. to 29. a stabilisation attempt for the S and F GANs (spectral normalisation and label smoothing in the discriminator, 3 seeds): training, evaluation and a summary;
+30. the report package.
+
+Steps 18–29 can also run unattended with `scripts/run_queue.py`: one step at a time, with step markers so a rerun resumes where it stopped, a free-memory watchdog and a progress log (see its docstring for the launch command).
 
 Decisions that could otherwise be tuned on test data follow pre-set rules that use validation data only (`simheart.reporting`):
 - **Classifier settings:** the learning rate with the best validation AP, then the best epoch count at that rate.
@@ -78,6 +83,7 @@ Settings live in `configs/` (`data`, `fitting`, `dcgan`, `simdcgan`, `classifier
 - detection on unseen patients (DS2) for every augmentation setup;
 - train-on-synthetic;
 - the relation to the SimGANs paper;
+- supplementary studies: training reliability, warm-up generators, 10 generators per model, the Euler-loss ablation and the small-class stabilisation attempt;
 - deviations and limitations.
 
 `outputs/` isn't tracked by Git; regenerate it with the commands above.
