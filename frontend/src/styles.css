@@ -1051,3 +1051,35 @@ table.data tr:last-child td {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* vitals: one column beside the strip, a row when stacked below it */
+.vitals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  overflow: hidden;
+}
+
+.vitals .vital {
+  margin-right: -1px;
+  border-right: 1px solid var(--line);
+  margin-bottom: -1px;
+}
+
+@media (max-width: 860px) {
+  .footer {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 10px max(16px, env(safe-area-inset-left, 0px)) calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .footer .grow {
+    order: 3;
+    flex: 1 1 100%;
+    white-space: normal;
+    line-height: 1.5;
+  }
+
+  .footer > span:last-child {
+    margin-left: auto;
+  }
+}

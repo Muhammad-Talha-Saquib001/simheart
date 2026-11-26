@@ -256,9 +256,14 @@ export function Calibrate() {
                 ...(shown ? [{ y: shown.z, color: C.twin, width: 1.8, glow: true, label: "twin" }] : []),
               ]}
             />
-            {residual && (
-              <TracePlot x={TIME_MS} height={90} yTicks={2} series={[{ y: residual, color: C.alert, width: 1.2, label: "residual" }]} xLabel="residual = twin − target" />
-            )}
+            <TracePlot
+              x={TIME_MS}
+              height={90}
+              yTicks={2}
+              yDomain={residual ? undefined : [-0.002, 0.002]}
+              series={residual ? [{ y: residual, color: C.alert, width: 1.2, label: "residual" }] : []}
+              xLabel={residual ? "residual = twin − target" : "residual · appears after the fit"}
+            />
           </div>
           <div className="readouts">
             <Readout k="R²" v={shown ? shown.r2.toFixed(4) : "—"} color={shown && shown.r2 > 0.9 ? C.twin : undefined} sub="share of variance explained" />

@@ -237,6 +237,7 @@ export function Monitor() {
         </Panel>
 
         <Panel code="B" title="Vitals" flush>
+          <div className="vitals">
           <div className="vital">
             <div className="vital-k">
               <span>Heart rate</span>
@@ -260,11 +261,12 @@ export function Monitor() {
             </div>
             <div className="vital-v md">{total ? (((total - vitals.counts.N) / total) * 100).toFixed(1) : "0.0"}</div>
           </div>
-          <div className="vital" style={{ borderBottom: 0 }}>
+          <div className="vital">
             <div className="note">
               Rates are counted from the strip like a bedside monitor (mean of the last 8 RR intervals). The ectopic rate is over the last
               minute of simulated time.
             </div>
+          </div>
           </div>
         </Panel>
       </div>

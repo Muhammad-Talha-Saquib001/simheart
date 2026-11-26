@@ -118,7 +118,7 @@ export function App() {
                 {l}
               </div>
             ))}
-            <div style={{ marginTop: 8, color: "var(--text-4)" }}>216 samples · 360 Hz · −200…+397 ms</div>
+            <div style={{ marginTop: 8, color: "var(--text-4)" }}>216 samples at 360 Hz, −200 to +397 ms</div>
           </div>
         </nav>
 
