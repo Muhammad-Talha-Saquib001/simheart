@@ -136,6 +136,33 @@ what_if = api.simulate(fitted["params"], fitted["z0"])
 
 **Responsible use.** Synthetic beats are research artefacts. They are not clinically validated, must not be used for diagnosis, and must never be presented as real patient data. `Beats.synthetic` and `Beats.source` say what every result is.
 
+## SimHeart console (web user interface)
+
+`frontend/` is a browser console for the digital twin. It has four modules:
+
+1. **Monitor.** The twin running live: a sweeping ECG strip with heart rate and ectopic beats, and the model's state space in 3D (the point circling the unit circle, z lifted off it).
+2. **Morphology.** The 15 wave parameters (a, b, θ for P, Q, R, S, T) as sliders, the beat split into each wave's contribution, and a dial to drag the wave angles.
+3. **Calibrate.** Fit the twin to one beat (animated, five starting points), then try what-ifs on the fitted twin (T wave ×2, wide QRS, …).
+4. **Generate.** Real beats next to DCGAN and SimDCGAN beats, with MMD, diversity and high-frequency share computed on the batch shown.
+
+The simulator and the fitting run in the browser (a TypeScript port of `ecgsyn.py`, checked against the PyTorch model in `frontend/src/engine/engine.test.ts`), so modules 1–3 work without the server. Real beats, the generators and the fitted class presets come from the server, which wraps `simheart.api`:
+
+```bash
+.venv/bin/pip install --no-cache-dir fastapi uvicorn                # once
+SIMHEART_MODEL_DIR=exports/simheart-models .venv/bin/uvicorn simheart.server:app --port 8000
+```
+
+For development (needs Node 20 or newer), in a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev      # http://localhost:5173, forwards /api to port 8000
+npm test         # simulator parity and gradient checks
+```
+
+`npm run build` writes `frontend/dist/`; the server then also serves the console itself at http://localhost:8000.
+
 ## Tests
 
 ```bash
