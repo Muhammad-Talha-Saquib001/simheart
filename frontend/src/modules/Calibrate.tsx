@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { backend, useTwin, type BeatsResponse } from "../backend";
+import { backend, NOTICE, useTwin, type BeatsResponse } from "../backend";
 import { TIME_MS, TYPICAL, WAVES, cloneParams, modelIntervals, simulate, type Field, type Params, type Wave } from "../engine/ecgsyn";
 import { Calibrator, START_NAMES } from "../engine/fitting";
+import { importBeat, MAX_BEAT_FILE_BYTES } from "../engine/importBeat";
 import { mulberry32 } from "../engine/rhythm";
 import { C, Legend, TracePlot } from "../ui/Plot";
 import { Panel, Progress, Readout, Seg } from "../ui/controls";
@@ -51,13 +52,16 @@ export function Calibrate() {
   const [pick, setPick] = useState(0);
   const [seed, setSeed] = useState(0);
   const [err, setErr] = useState<string | null>(null);
+  const [imported, setImported] = useState<Target | null>(null);
+  const [readingFile, setReadingFile] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const cal = useRef<Calibrator | null>(null);
   const [running, setRunning] = useState(false);
   const [fit, setFit] = useState<ReturnType<Calibrator["best"]> | null>(null);
   const [whatIf, setWhatIf] = useState<Params | null>(null);
   const [active, setActive] = useState<string[]>([]);
-  const [server, setServer] = useState<{ r2: number; z: number[]; ms: number } | null>(null);
+  const [serverResult, setServer] = useState<{ target: Target; r2: number; z: number[]; ms: number } | null>(null);
   const [serverBusy, setServerBusy] = useState(false);
 
   // load targets
@@ -82,7 +86,22 @@ export function Calibrate() {
     };
   }, [cls, seed, online]);
 
-  const target = batch[pick];
+  const target = imported ?? batch[pick];
+  const targetLabel = imported ? "imported ECG" : target?.real ? "MIT-BIH beat" : "demo target";
+  const server = serverResult?.target === target ? serverResult : null;
+
+  const loadFile = async (file: File) => {
+    setFileError(null);
+    setReadingFile(true);
+    try {
+      if (file.size > MAX_BEAT_FILE_BYTES) throw new Error("Choose a CSV smaller than 16 KB.");
+      setImported({ values: importBeat(await file.text()), label: file.name, real: false });
+    } catch (e) {
+      setFileError((e as Error).message);
+    } finally {
+      setReadingFile(false);
+    }
+  };
 
   // reset the fit when the target changes
   useEffect(() => {
@@ -99,7 +118,8 @@ export function Calibrate() {
     if (!running) return;
     let raf = 0;
     const step = () => {
-      const c = cal.current!;
+      const c = cal.current;
+      if (!c) return;
       c.advance(4);
       setTick((t) => t + 1);
       if (c.done) {
@@ -120,17 +140,19 @@ export function Calibrate() {
     if (!target) return;
     cal.current = new Calibrator(target.values, twin.space, 300, 0.03);
     setFit(null);
+    setWhatIf(null);
+    setActive([]);
     setServer(null);
     setRunning(true);
   };
 
   const verify = async () => {
-    if (!target) return;
+    if (!target || imported) return;
     setServerBusy(true);
     const t0 = performance.now();
     try {
       const r = await backend.calibrate(Array.from(target.values), 300);
-      setServer({ r2: r.r2, z: r.fit.values[0], ms: performance.now() - t0 });
+      setServer({ target, r2: r.r2, z: r.fit.values[0], ms: performance.now() - t0 });
     } catch (e) {
       setErr(String((e as Error).message ?? e));
     } finally {
@@ -179,51 +201,84 @@ export function Calibrate() {
           Fit the twin to one beat: the simulator's 15 parameters and starting value are tuned until its beat matches. Then change the
           fitted twin and see what the beat would look like.
         </p>
-        <div className="tools">
-          <Seg value={cls} options={["S", "V", "F"] as const} onChange={setCls} />
-          {online && (
-            <button className="btn ghost" onClick={() => setSeed((s) => s + 1)}>
-              New sample
-            </button>
-          )}
-        </div>
+        {!imported && (
+          <div className="tools">
+            <Seg value={cls} options={["S", "V", "F"] as const} onChange={setCls} />
+            {online && (
+              <button className="btn ghost" onClick={() => setSeed((s) => s + 1)}>
+                New sample
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2.2fr)" }} data-stack>
         <Panel
           code="A"
           title="Target beat"
-          right={online ? <span className="tag" style={{ color: C.real, borderColor: C.real }}>real · MIT-BIH validation</span> : <span className="tag syn">demo · server offline</span>}
+          right={<span className="tag">{targetLabel}</span>}
         >
           {err && <div className="note" style={{ color: C.alert, marginBottom: 8 }}>{err}</div>}
-          <div className="thumbs">
-            {batch.map((t, i) => (
-              <button key={i} className={`thumb ${i === pick ? "on" : ""}`} onClick={() => setPick(i)}>
-                <TracePlot series={[{ y: t.values, color: i === pick ? C.real : C.dim, width: 1.1 }]} x={TIME_MS} height={40} bare tooltip={false} paper={false} yTicks={2} />
-                <div className="thumb-k">
-                  <span>{t.label}</span>
-                  <span>{cls}</span>
-                </div>
+          <label className="field-label" htmlFor="ecg-file">Import ECG beat (CSV)</label>
+          <input
+            id="ecg-file"
+            className="ecg-file"
+            type="file"
+            accept=".csv,text/csv"
+            disabled={readingFile}
+            aria-describedby="ecg-file-format"
+            aria-invalid={fileError ? true : undefined}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) void loadFile(file);
+            }}
+          />
+          <p className="note ecg-file-note" id="ecg-file-format">
+            One 360 Hz beat, 216 rows in mV, with the R peak at row 73. Optional header: amplitude_mv.
+            The browser scales the amplitude for fitting and keeps the file local.
+          </p>
+          {fileError && <p className="note ecg-file-error" role="alert">{fileError}</p>}
+          {imported ? (
+            <>
+              <p className="note" role="status">Selected: {imported.label}</p>
+              <button className="btn ghost" disabled={readingFile} onClick={() => { setImported(null); setFileError(null); }}>
+                Use {online ? "MIT-BIH" : "demo"} examples
               </button>
-            ))}
-          </div>
-          <div className="note" style={{ marginTop: 10 }}>
-            {online ? (
-              <>
-                Beats from MIT-BIH <b>validation patients</b>, never used to train the generators. {twin.status?.attribution}
-              </>
-            ) : (
-              <>
-                <b>Server offline:</b> these targets are simulated beats with random changes and noise, so you can try the fitter. Start
-                the server with a model bundle to calibrate against real beats.
-              </>
-            )}
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="thumbs">
+                {batch.map((t, i) => (
+                  <button key={i} className={`thumb ${i === pick ? "on" : ""}`} onClick={() => setPick(i)}>
+                    <TracePlot series={[{ y: t.values, color: i === pick ? C.real : C.dim, width: 1.1 }]} x={TIME_MS} height={40} bare tooltip={false} paper={false} yTicks={2} />
+                    <div className="thumb-k">
+                      <span>{t.label}</span>
+                      <span>{cls}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="note" style={{ marginTop: 10 }}>
+                {online ? (
+                  <>
+                    Beats from MIT-BIH <b>validation patients</b>, never used to train the generators. {twin.status?.attribution}
+                  </>
+                ) : (
+                  <>
+                    <b>Server offline:</b> these demo targets are simulated beats with random changes and noise. Connect the server
+                    with a model bundle for MIT-BIH examples.
+                  </>
+                )}
+              </div>
+            </>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-            <button className="btn primary" onClick={start} disabled={!target || running}>
+            <button className="btn primary" onClick={start} disabled={!target || running || readingFile}>
               {running ? "Fitting…" : fit ? "Re-run fit" : "Calibrate twin"}
             </button>
-            {online && (
+            {online && !imported && (
               <button className="btn ghost" onClick={verify} disabled={!fit || serverBusy} title="Run simheart.api.calibrate (PyTorch) on the server">
                 {serverBusy ? "Running…" : "Check on server"}
               </button>
@@ -243,7 +298,7 @@ export function Calibrate() {
         <Panel
           code="B"
           title="Fit"
-          right={<Legend items={[{ color: C.real, label: target?.real ? "real beat" : "target" }, { color: C.twin, label: "twin fit" }, ...(server ? [{ color: C.simgan, label: "server fit", dash: true }] : [])]} />}
+          right={<Legend items={[{ color: C.real, label: targetLabel }, { color: C.twin, label: "twin fit" }, ...(server ? [{ color: C.simgan, label: "server fit", dash: true }] : [])]} />}
           flush
         >
           <div style={{ padding: "6px 6px 0" }}>
@@ -251,7 +306,7 @@ export function Calibrate() {
               x={TIME_MS}
               height={250}
               series={[
-                ...(target ? [{ y: target.values, color: C.real, width: 1.6, label: target.real ? "real" : "target" }] : []),
+                ...(target ? [{ y: target.values, color: C.real, width: 1.6, label: targetLabel }] : []),
                 ...(server ? [{ y: server.z, color: C.simgan, width: 1.3, dash: [5, 4], label: "server" }] : []),
                 ...(shown ? [{ y: shown.z, color: C.twin, width: 1.8, glow: true, label: "twin" }] : []),
               ]}
@@ -269,7 +324,7 @@ export function Calibrate() {
             <Readout k="R²" v={shown ? shown.r2.toFixed(4) : "—"} color={shown && shown.r2 > 0.9 ? C.twin : undefined} sub="share of variance explained" />
             <Readout k="SSE" v={shown ? shown.loss.toExponential(2) : "—"} sub="sum of squared error" />
             <Readout k="Best start" v={shown ? shown.name : "—"} sub="of N · S · V · F · McSharry" />
-            <Readout k="Server check" v={server ? server.r2.toFixed(4) : "—"} sub={server ? `R², PyTorch · ${(server.ms / 1000).toFixed(1)} s` : online ? "after fitting" : "needs server"} />
+            {!imported && <Readout k="Server check" v={server ? server.r2.toFixed(4) : "—"} sub={server ? `R², PyTorch · ${(server.ms / 1000).toFixed(1)} s` : online ? "after fitting" : "needs server"} />}
           </div>
         </Panel>
       </div>
@@ -326,12 +381,18 @@ export function Calibrate() {
                   </button>
                 </div>
                 <div style={{ padding: "6px 6px 0" }}>
+                  <Legend items={[
+                    { color: C.real, label: targetLabel },
+                    { color: C.twin, label: "calibrated fit", dash: true },
+                    { color: C.text, label: "synthetic what-if" },
+                  ]} />
                   <TracePlot
                     x={TIME_MS}
                     height={230}
                     series={[
+                      ...(target ? [{ y: target.values, color: C.real, width: 1.2, label: targetLabel }] : []),
                       { y: fit.z, color: C.twin, width: 1.4, dash: [4, 3], label: "calibrated" },
-                      { y: scenarioZ, color: C.text, width: 1.9, glow: true, label: "what-if" },
+                      { y: scenarioZ, color: C.text, width: 1.9, glow: true, label: "synthetic what-if" },
                     ]}
                   />
                   <TracePlot
@@ -344,10 +405,11 @@ export function Calibrate() {
                   />
                 </div>
                 <IntervalDelta base={fit.params} next={whatIf} />
+                <p className="note panel-body">Intervals are model estimates. Amplitude is in simulator units. {NOTICE}</p>
               </div>
               <div className="panel-body" style={{ maxHeight: 520, overflowY: "auto" }}>
                 <div className="field-label">Fine-tune (tick = calibrated value)</div>
-                <WaveControls params={whatIf} reference={fit.params} onChange={editWhatIf} cls={cls} compact />
+                <WaveControls params={whatIf} reference={fit.params} onChange={editWhatIf} cls={imported ? undefined : cls} compact />
               </div>
             </div>
           )}

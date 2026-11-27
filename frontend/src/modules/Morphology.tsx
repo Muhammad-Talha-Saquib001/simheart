@@ -26,11 +26,11 @@ export function WaveControls({
   params: Params;
   reference: Params;
   onChange: (w: Wave, f: Field, v: number) => void;
-  cls: BeatClass;
+  cls?: BeatClass;
   compact?: boolean;
 }) {
   const twin = useTwin();
-  const band = twin.bands[cls];
+  const band = cls ? twin.bands[cls] : undefined;
   return (
     <div style={{ display: "grid", gap: 6 }}>
       {WAVES.map((w) => (
