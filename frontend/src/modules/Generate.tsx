@@ -3,7 +3,7 @@ import { backend, useTwin, type BeatsResponse } from "../backend";
 import { TIME_MS } from "../engine/ecgsyn";
 import { envelope, hfFraction, meanPairwise, medianOf, mmdRbf } from "../engine/metrics";
 import { C, Legend, TracePlot } from "../ui/Plot";
-import { Panel, Seg } from "../ui/controls";
+import { Panel, Seg, Steps } from "../ui/controls";
 
 type Cls = "S" | "V" | "F";
 type Source = "real" | "dcgan" | "simdcgan";
@@ -89,9 +89,7 @@ export function Generate() {
   return (
     <div className="module">
       <div className="module-head">
-        <h1>
-          <span>04</span>GENERATOR LAB
-        </h1>
+        <h1>Generator lab</h1>
         <p>
           Beats drawn from the trained generators next to real beats of the same class. SimDCGAN was trained with the Euler loss, which
           pulls its beats towards the heart equations; DCGAN was not.
@@ -104,6 +102,8 @@ export function Generate() {
           </button>
         </div>
       </div>
+
+      <Steps items={["Pick a class and how many beats", "Compare the three panels with the real beats", "Check the fidelity table: lower MMD² is closer to real"]} />
 
       <div className="grid" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }} data-stack>
         {(["real", "dcgan", "simdcgan"] as const).map((s) => {
@@ -193,9 +193,9 @@ export function Generate() {
               <thead>
                 <tr>
                   <th>source</th>
-                  <th className="num">MMD² vs real ↓</th>
-                  <th className="num">diversity</th>
-                  <th className="num">HF &gt;40 Hz ↓</th>
+                  <th className="num" title="How different the batch is from the real beats. Lower is better; the real row is the noise floor">MMD² vs real ↓</th>
+                  <th className="num" title="Average distance between two beats in the batch (×10⁻³). Too low means the generator repeats itself">diversity</th>
+                  <th className="num" title="Share of the signal's power above 40 Hz. Higher means a more jagged, noisier beat">HF &gt;40 Hz ↓</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,9 +272,7 @@ function Offline({ linkOnline, error }: { linkOnline: boolean; error: string | n
   return (
     <div className="module">
       <div className="module-head">
-        <h1>
-          <span>04</span>GENERATOR LAB
-        </h1>
+        <h1>Generator lab</h1>
         <p>Real beats next to DCGAN and SimDCGAN beats, with live fidelity measures.</p>
       </div>
       <Panel code="A" title={linkOnline ? "Model bundle not found" : "Server offline"}>

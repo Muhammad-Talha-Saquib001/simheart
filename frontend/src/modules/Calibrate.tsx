@@ -4,7 +4,7 @@ import { TIME_MS, TYPICAL, WAVES, cloneParams, modelIntervals, simulate, type Fi
 import { Calibrator, START_NAMES } from "../engine/fitting";
 import { mulberry32 } from "../engine/rhythm";
 import { C, Legend, TracePlot } from "../ui/Plot";
-import { Panel, Progress, Readout, Seg } from "../ui/controls";
+import { Panel, Progress, Readout, Seg, Steps } from "../ui/controls";
 import { WaveControls } from "./Morphology";
 
 type Cls = "S" | "V" | "F";
@@ -172,9 +172,7 @@ export function Calibrate() {
   return (
     <div className="module">
       <div className="module-head">
-        <h1>
-          <span>03</span>CALIBRATE &amp; WHAT-IF
-        </h1>
+        <h1>Calibrate and what-if</h1>
         <p>
           Fit the twin to one beat: the simulator's 15 parameters and starting value are tuned until its beat matches. Then change the
           fitted twin and see what the beat would look like.
@@ -188,6 +186,8 @@ export function Calibrate() {
           )}
         </div>
       </div>
+
+      <Steps items={["Pick a target beat", "Press Calibrate twin and watch it fit", "Try a what-if or move a slider"]} />
 
       <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2.2fr)" }} data-stack>
         <Panel
@@ -266,10 +266,10 @@ export function Calibrate() {
             />
           </div>
           <div className="readouts">
-            <Readout k="R²" v={shown ? shown.r2.toFixed(4) : "—"} color={shown && shown.r2 > 0.9 ? C.twin : undefined} sub="share of variance explained" />
-            <Readout k="SSE" v={shown ? shown.loss.toExponential(2) : "—"} sub="sum of squared error" />
-            <Readout k="Best start" v={shown ? shown.name : "—"} sub="of N · S · V · F · McSharry" />
-            <Readout k="Server check" v={server ? server.r2.toFixed(4) : "—"} sub={server ? `R², PyTorch · ${(server.ms / 1000).toFixed(1)} s` : online ? "after fitting" : "needs server"} />
+            <Readout k="R²" help="How much of the beat's shape the twin explains: 1 is a perfect match" v={shown ? shown.r2.toFixed(4) : "—"} color={shown && shown.r2 > 0.9 ? C.twin : undefined} sub="share of variance explained" />
+            <Readout k="SSE" help="Sum of squared differences between the twin and the target: lower is better" v={shown ? shown.loss.toExponential(2) : "—"} sub="sum of squared error" />
+            <Readout k="Best start" help="The five fits start from different typical beats; this one ended closest" v={shown ? shown.name : "—"} sub="of N · S · V · F · McSharry" />
+            <Readout k="Server check" help="The same fit run by the Python model on the server, to confirm the browser result" v={server ? server.r2.toFixed(4) : "—"} sub={server ? `R², PyTorch · ${(server.ms / 1000).toFixed(1)} s` : online ? "after fitting" : "needs server"} />
           </div>
         </Panel>
       </div>

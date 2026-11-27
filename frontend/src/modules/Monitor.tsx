@@ -3,7 +3,7 @@ import { useTwin } from "../backend";
 import { TIME_MS, modelIntervals, simulate } from "../engine/ecgsyn";
 import { RhythmStream, type BeatClass, type RhythmConfig } from "../engine/rhythm";
 import { C, TracePlot } from "../ui/Plot";
-import { Panel, Readout, Seg, Slider } from "../ui/controls";
+import { Panel, Readout, Seg, Slider, Steps } from "../ui/controls";
 import { PhasePortrait, type PortraitState } from "../ui/PhasePortrait";
 
 export const CLASS_COLOR: Record<BeatClass, string> = { N: C.dim, S: C.wave.S, V: C.alert, F: C.real };
@@ -132,7 +132,7 @@ export function Monitor() {
       g.fill();
 
       // beat annotations
-      g.font = "600 10px 'IBM Plex Mono', monospace";
+      g.font = "600 11px 'JetBrains Mono', monospace";
       g.textAlign = "center";
       let prev: number | null = null;
       for (const b of stream.beats) {
@@ -151,10 +151,10 @@ export function Monitor() {
           g.globalAlpha = 1;
         }
         if (prev !== null) {
-          g.fillStyle = "#5d6b73";
-          g.font = "10px 'IBM Plex Mono', monospace";
+          g.fillStyle = "#a9b5bb";
+          g.font = "11px 'JetBrains Mono', monospace";
           g.fillText(`${Math.round(b.tR - prev)}`, px - (b.tR - prev) / msPerPx / 2, height - 10);
-          g.font = "600 10px 'IBM Plex Mono', monospace";
+          g.font = "600 11px 'JetBrains Mono', monospace";
         }
         prev = b.tR;
       }
@@ -200,9 +200,7 @@ export function Monitor() {
   return (
     <div className="module">
       <div className="module-head">
-        <h1>
-          <span>01</span>LIVE TWIN MONITOR
-        </h1>
+        <h1>Live twin monitor</h1>
         <p>
           The heart model running continuously. Each beat is simulated by ECGSYN from its class parameters, then placed on a
           timeline by the rhythm composer.
@@ -214,6 +212,8 @@ export function Monitor() {
           </button>
         </div>
       </div>
+
+      <Steps items={["Watch the strip: each beat is labelled N, S, V or F", "Change heart rate and extra beats in the rhythm panel", "Drag the 3D view to see the model from inside"]} />
 
       <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) 260px" }} data-stack>
         <Panel
@@ -286,8 +286,8 @@ export function Monitor() {
           <div style={{ display: "grid", gap: 14 }}>
             <div>
               <div className="field-label">Sinus rate · bpm</div>
-              <Slider k="HR" value={config.hr} min={40} max={150} step={1} digits={0} onChange={(v) => set("hr", Math.round(v))} reference={72} />
-              <Slider k="HRV" value={config.hrv} min={0} max={0.2} step={0.005} onChange={(v) => set("hrv", v)} reference={0.06} />
+              <Slider k="HR" label="rate" value={config.hr} min={40} max={150} step={1} digits={0} onChange={(v) => set("hr", Math.round(v))} reference={72} />
+              <Slider k="HRV" label="spread" value={config.hrv} min={0} max={0.2} step={0.005} onChange={(v) => set("hrv", v)} reference={0.06} />
             </div>
             <div>
               <div className="field-label" style={{ display: "flex", justifyContent: "space-between" }}>
@@ -295,11 +295,11 @@ export function Monitor() {
               </div>
               <Seg value={config.ectopic} options={["S", "V", "F"] as const} onChange={(v) => set("ectopic", v)} />
               <div style={{ height: 8 }} />
-              <Slider k="%" value={config.burden * 100} min={0} max={40} step={1} digits={0} color={CLASS_COLOR[config.ectopic]} onChange={(v) => set("burden", v / 100)} reference={12} />
+              <Slider k="%" label="of beats" value={config.burden * 100} min={0} max={40} step={1} digits={0} color={CLASS_COLOR[config.ectopic]} onChange={(v) => set("burden", v / 100)} reference={12} />
             </div>
             <div>
               <div className="field-label">Beat-to-beat morphology jitter</div>
-              <Slider k="σ" value={config.variability} min={0} max={0.08} step={0.002} onChange={(v) => set("variability", v)} reference={0.03} />
+              <Slider k="σ" label="jitter" value={config.variability} min={0} max={0.08} step={0.002} onChange={(v) => set("variability", v)} reference={0.03} />
             </div>
             <div className="note">
               <b>Timing rules (display only):</b> V arrives at ~62 % of RR with a full compensatory pause; S at ~72 % and resets the

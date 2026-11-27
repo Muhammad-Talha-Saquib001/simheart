@@ -20,10 +20,9 @@ export function Panel({
   return (
     <section className={`panel ${className}`} style={style}>
       <header className="panel-head">
-        <div className="panel-title">
-          {code && <i>{code}</i>}
+        <h2 className="panel-title" data-code={code}>
           {title}
-        </div>
+        </h2>
         {right && <div className="right">{right}</div>}
       </header>
       <div className={`panel-body ${flush ? "flush" : ""}`} style={{ flex: 1 }}>
@@ -55,9 +54,9 @@ export function Seg<T extends string | number>({
   );
 }
 
-export function Readout({ k, v, unit, sub, color }: { k: string; v: ReactNode; unit?: string; sub?: ReactNode; color?: string }) {
+export function Readout({ k, v, unit, sub, color, help }: { k: string; v: ReactNode; unit?: string; sub?: ReactNode; color?: string; help?: string }) {
   return (
-    <div className="readout">
+    <div className="readout" title={help}>
       <div className="readout-k">{k}</div>
       <div className="readout-v" style={{ color }}>
         {v}
@@ -74,6 +73,7 @@ export function Readout({ k, v, unit, sub, color }: { k: string; v: ReactNode; u
  */
 export function Slider({
   k,
+  label,
   value,
   min,
   max,
@@ -85,6 +85,7 @@ export function Slider({
   step,
 }: {
   k: string;
+  label?: string; // plain-language name shown next to the symbol
   value: number;
   min: number;
   max: number;
@@ -113,13 +114,16 @@ export function Slider({
 
   return (
     <div className="slider" style={{ "--c": color } as CSSProperties}>
-      <span className="slider-k">{k}</span>
+      <span className="slider-k">
+        <b>{k}</b>
+        {label}
+      </span>
       <div
         className="track"
         ref={track}
         tabIndex={0}
         role="slider"
-        aria-label={k}
+        aria-label={label ? `${label} (${k})` : k}
         aria-valuemin={min}
         aria-valuemax={max}
         aria-valuenow={value}
@@ -157,5 +161,22 @@ export function Progress({ value }: { value: number }) {
     <div className="progress">
       <div style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />
     </div>
+  );
+}
+
+/** A short numbered how-to: the steps are a real order of use. */
+export function Steps({ items }: { items: string[] }) {
+  return (
+    <ol className="steps" aria-label="How to use this screen">
+      <li>
+        <span className="k">How to use</span>
+      </li>
+      {items.map((t, i) => (
+        <li key={i}>
+          <span className="n">{i + 1}</span>
+          {t}
+        </li>
+      ))}
+    </ol>
   );
 }
