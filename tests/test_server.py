@@ -63,10 +63,13 @@ def test_generated_and_real_beats_say_what_they_are(client):
     assert real["info"]["records"] == ["118"] * 2
 
 
-def test_bad_requests_are_400_and_missing_generators_503(client):
+def test_bad_requests_are_400(client):
     assert client.get("/api/generate", params={"beat_type": "X"}).status_code == 400
     assert client.get("/api/generate", params={"beat_type": "S"}).status_code == 400
-    assert client.get("/api/generate", params={"beat_type": "V", "seed": 9}).status_code == 503
+    missing_seed = client.get("/api/generate", params={"beat_type": "V", "seed": 9})
+    assert missing_seed.status_code == 400
+    assert "available seeds: 0" in missing_seed.json()["detail"]
+    assert str(api.model_dir()) not in missing_seed.json()["detail"]
 
 
 def _json(body: dict) -> dict:
@@ -145,5 +148,6 @@ def test_status_without_a_bundle_still_answers(client, tmp_path):
         body = client.get("/api/status").json()
         assert body["ok"] and not body["bundle"] and "not found" in body["bundle_error"]
         assert client.get("/api/real").status_code == 503
+        assert client.get("/api/generate", params={"seed": 0}).status_code == 503
     finally:
         api.set_model_dir(previous)

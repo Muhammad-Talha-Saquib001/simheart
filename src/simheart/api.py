@@ -208,7 +208,17 @@ def generate(
     ``random_state`` makes the output reproducible.
     """
     _check(beat_type, model)
-    seed = _default_seed(model, beat_type) if seed is None else seed
+    if seed is None:
+        seed = _default_seed(model, beat_type)
+    else:
+        seeds = sorted(
+            m.seed for m in available_models() if m.model == model and m.beat_type == beat_type
+        )
+        if seed not in seeds:
+            raise ValueError(
+                f"No {model} generator for class {beat_type!r} with seed {seed}; "
+                f"available seeds: {', '.join(map(str, seeds)) or 'none'}"
+            )
     generator = None if random_state is None else torch.Generator().manual_seed(random_state)
     noise = torch.randn(n, NOISE_DIM, generator=generator)
     with torch.no_grad():
