@@ -5,14 +5,14 @@ export const C = {
   grid: "#141b21",
   gridMajor: "#1d272e",
   axis: "#31404a",
-  tick: "#5d6b73",
-  text: "#d9e1e5",
+  tick: "#a9b5bb",
+  text: "#f6f8f9",
   twin: "#4fe3c1",
   real: "#f2b54a",
   simgan: "#6aa8ff",
   dcgan: "#ff7a59",
   alert: "#ff4d5e",
-  dim: "#9aa7ae",
+  dim: "#d3dbdf",
   wave: { P: "#7aa7ff", Q: "#b4e05a", R: "#ff5d73", S: "#f5a524", T: "#c38bff" } as Record<string, string>,
 };
 
@@ -183,7 +183,7 @@ export function TracePlot({
     // ticks
     if (!bare) {
     g.fillStyle = C.tick;
-    g.font = "10px 'IBM Plex Mono', monospace";
+    g.font = "11px 'JetBrains Mono', monospace";
     g.textAlign = "right";
     g.textBaseline = "middle";
     for (const v of yt) g.fillText(fmtY(v), pad.l - 7, sy(v));
@@ -196,7 +196,7 @@ export function TracePlot({
       g.fillText(fmtX(v), px, pad.t + H + 7);
     }
     g.textAlign = "right";
-    g.fillStyle = "#3a464d";
+    g.fillStyle = "#7d8a91";
     g.fillText(xLabel.toUpperCase(), pad.l + W, pad.t + H + 7);
     }
 
@@ -216,7 +216,7 @@ export function TracePlot({
       g.fillStyle = m.color;
       g.textAlign = "center";
       g.textBaseline = "top";
-      g.font = "600 10px 'IBM Plex Mono', monospace";
+      g.font = "600 11px 'JetBrains Mono', monospace";
       g.fillText(m.label, px, pad.t);
     }
 
@@ -264,7 +264,7 @@ export function TracePlot({
 
     if (hover !== null) {
       const px = Math.round(sx(hover)) + 0.5;
-      g.strokeStyle = "#9aa7ae";
+      g.strokeStyle = "#d3dbdf";
       g.globalAlpha = 0.5;
       g.beginPath();
       g.moveTo(px, pad.t);
@@ -304,7 +304,7 @@ export function TracePlot({
           return (
             <div className="r" key={k}>
               <span className="swatch" style={{ background: s.color }} />
-              <span style={{ color: "#9aa7ae", minWidth: 70 }}>{s.label}</span>
+              <span style={{ color: "#d3dbdf", minWidth: 70 }}>{s.label}</span>
               <span>{s.y[i].toFixed(5)}</span>
             </div>
           );

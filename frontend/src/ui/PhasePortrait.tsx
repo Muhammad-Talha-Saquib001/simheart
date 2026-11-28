@@ -20,6 +20,7 @@ export function PhasePortrait({ source, height = 300, zScale = 22 }: { source: R
 
   useEffect(() => {
     let raf = 0;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     const cv = canvas.current!;
     const draw = () => {
       raf = requestAnimationFrame(draw);
@@ -34,7 +35,7 @@ export function PhasePortrait({ source, height = 300, zScale = 22 }: { source: R
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, width, height);
       const v = view.current;
-      if (!v.drag) {
+      if (!v.drag && !reduced) {
         v.idle++;
         if (v.idle > 90) v.yaw += 0.0025;
       }
@@ -85,7 +86,7 @@ export function PhasePortrait({ source, height = 300, zScale = 22 }: { source: R
       g.stroke();
 
       // wave spokes and labels
-      g.font = "600 10px 'IBM Plex Mono', monospace";
+      g.font = "600 11px 'JetBrains Mono', monospace";
       g.textAlign = "center";
       g.textBaseline = "middle";
       for (const w of WAVES) {
@@ -119,7 +120,7 @@ export function PhasePortrait({ source, height = 300, zScale = 22 }: { source: R
       g.globalAlpha = 1;
 
       if (ghost) {
-        g.strokeStyle = "#5d6b73";
+        g.strokeStyle = "#a9b5bb";
         g.setLineDash([3, 3]);
         g.beginPath();
         for (let i = 0; i < N_SAMPLES; i++) {
@@ -167,16 +168,16 @@ export function PhasePortrait({ source, height = 300, zScale = 22 }: { source: R
         g.fill();
         g.shadowBlur = 0;
         // readout
-        g.font = "10px 'IBM Plex Mono', monospace";
+        g.font = "11px 'JetBrains Mono', monospace";
         g.textAlign = "left";
-        g.fillStyle = "#9aa7ae";
+        g.fillStyle = "#d3dbdf";
         const th = (Math.atan2(PHASE.ys[i], PHASE.xs[i]) * 180) / Math.PI;
         g.fillText(`θ ${th.toFixed(1).padStart(6)}°`, 12, 16);
         g.fillText(`z ${values[i].toFixed(4).padStart(8)}`, 12, 30);
       }
-      g.font = "9px 'IBM Plex Mono', monospace";
+      g.font = "10px 'JetBrains Mono', monospace";
       g.textAlign = "right";
-      g.fillStyle = "#3a464d";
+      g.fillStyle = "#7d8a91";
       g.fillText("DRAG TO ROTATE", width - 10, height - 10);
     };
     draw();

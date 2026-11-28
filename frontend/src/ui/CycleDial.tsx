@@ -80,10 +80,12 @@ export function CycleDial({
         return <line key={d} x1={x0} y1={y0} x2={x1} y2={y1} stroke={major ? "#31404a" : "#1d272e"} />;
       })}
       {[0, 90, 180, 270].map((d) => {
+        const near = WAVES.some((w) => Math.abs((((params[w].theta_deg - d) % 360) + 540) % 360 - 180) < 22);
+        if (near) return null;
         const [x, y] = pt(d, r + 22);
         const label = d > 180 ? d - 360 : d;
         return (
-          <text key={d} x={x} y={y} fill="#3a464d" fontSize="9" fontFamily="IBM Plex Mono" textAnchor="middle" dominantBaseline="middle">
+          <text key={d} x={x} y={y} fill="#7d8a91" fontSize="10.5" fontFamily="JetBrains Mono" textAnchor="middle" dominantBaseline="middle">
             {label}°
           </text>
         );
@@ -108,16 +110,16 @@ export function CycleDial({
               <circle cx={hx} cy={hy} r="11" fill="transparent" />
               <rect x={hx - 5} y={hy - 5} width="10" height="10" fill={C.wave[w]} stroke="#07090b" strokeWidth="2" transform={`rotate(45 ${hx} ${hy})`} />
             </g>
-            <text x={lx} y={ly} fill={C.wave[w]} fontSize="11" fontWeight="600" fontFamily="IBM Plex Mono" textAnchor="middle" dominantBaseline="middle">
+            <text x={lx} y={ly} fill={C.wave[w]} fontSize="12" fontWeight="600" fontFamily="JetBrains Mono" textAnchor="middle" dominantBaseline="middle">
               {w}
             </text>
           </g>
         );
       })}
-      <text x={c} y={c - 6} fill="#5d6b73" fontSize="9" fontFamily="IBM Plex Mono" textAnchor="middle" letterSpacing="1.5">
+      <text x={c} y={c - 6} fill="#a9b5bb" fontSize="10.5" fontFamily="JetBrains Mono" textAnchor="middle" letterSpacing="1.5">
         ONE LAP
       </text>
-      <text x={c} y={c + 8} fill="#5d6b73" fontSize="9" fontFamily="IBM Plex Mono" textAnchor="middle" letterSpacing="1.5">
+      <text x={c} y={c + 8} fill="#a9b5bb" fontSize="10.5" fontFamily="JetBrains Mono" textAnchor="middle" letterSpacing="1.5">
         = ONE BEAT
       </text>
     </svg>

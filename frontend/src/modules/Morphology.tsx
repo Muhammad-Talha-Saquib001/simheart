@@ -4,7 +4,7 @@ import { FIELDS, MS_PER_RAD, TIME_MS, WAVES, cloneParams, decompose, modelInterv
 import type { BeatClass } from "../engine/rhythm";
 import { CycleDial } from "../ui/CycleDial";
 import { C, Legend, TracePlot } from "../ui/Plot";
-import { Panel, Readout, Seg, Slider } from "../ui/controls";
+import { Panel, Readout, Seg, Slider, Steps } from "../ui/controls";
 
 const WAVE_NAME: Record<Wave, string> = {
   P: "atrial depolarisation",
@@ -14,6 +14,7 @@ const WAVE_NAME: Record<Wave, string> = {
   T: "repolarisation",
 };
 const FIELD_LABEL: Record<Field, string> = { a: "a", b: "b", theta_deg: "θ" };
+export const FIELD_NAME: Record<Field, string> = { a: "height", b: "width", theta_deg: "timing" };
 const DIGITS: Record<Field, number> = { a: 3, b: 3, theta_deg: 1 };
 
 export function WaveControls({
@@ -47,6 +48,7 @@ export function WaveControls({
               <Slider
                 key={f}
                 k={FIELD_LABEL[f]}
+                label={FIELD_NAME[f]}
                 value={params[w][f]}
                 min={lo}
                 max={hi}
@@ -112,9 +114,7 @@ export function Morphology() {
   return (
     <div className="module">
       <div className="module-head">
-        <h1>
-          <span>02</span>MORPHOLOGY LAB
-        </h1>
+        <h1>Morphology lab</h1>
         <p>
           Every beat is set by 15 numbers: an amplitude <b>a</b>, a width <b>b</b> and an angle <b>θ</b> for each of the P, Q, R, S
           and T waves. Change them and the simulated beat updates live.
@@ -130,11 +130,13 @@ export function Morphology() {
         </div>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "310px minmax(0, 1fr) 300px" }} data-stack>
+      <Steps items={["Pick a beat class (N, S, V, F)", "Move a slider or drag a ◆ on the dial", "Compare the twin with the dashed preset"]} />
+
+      <div className="grid" style={{ gridTemplateColumns: "340px minmax(0, 1fr) 300px" }} data-stack>
         <Panel
           code="A"
           title="Wave parameters"
-          right={<span className="hint">{twin.bands[cls] ? "band: 1–99 pct of fits" : "dbl-click resets"}</span>}
+          right={<span className="hint">{twin.bands[cls] ? "shaded = typical range" : "double-click resets"}</span>}
         >
           <WaveControls params={params} reference={preset} onChange={change} cls={cls} />
         </Panel>
@@ -158,11 +160,11 @@ export function Morphology() {
               />
             </div>
             <div className="readouts">
-              <Readout k="R peak" v={(st.max * 1000).toFixed(1)} unit="×10⁻³" sub={`at ${Math.round(TIME_MS[st.iMax])} ms`} />
-              <Readout k="Span" v={(st.span * 1000).toFixed(1)} unit="×10⁻³" sub="max − min, sim. units" />
-              <Readout k="PR (model)" v={Math.round(iv.pr)} unit="ms" sub={delta(iv.pr, ivRef.pr)} />
-              <Readout k="QRS (model)" v={Math.round(iv.qrs)} unit="ms" sub={delta(iv.qrs, ivRef.qrs)} color={iv.qrs > 120 ? C.real : undefined} />
-              <Readout k="QT (model)" v={Math.round(iv.qt)} unit="ms" sub={delta(iv.qt, ivRef.qt)} />
+              <Readout k="R peak" help="Height of the tallest point of the beat, in simulator units ×10⁻³" v={(st.max * 1000).toFixed(1)} sub={`×10⁻³ · at ${Math.round(TIME_MS[st.iMax])} ms`} />
+              <Readout k="Span" help="Tallest point minus lowest point" v={(st.span * 1000).toFixed(1)} sub="×10⁻³ sim. units" />
+              <Readout k="PR (model)" help="Time from the P wave to the R wave, read from the parameters" v={Math.round(iv.pr)} unit="ms" sub={delta(iv.pr, ivRef.pr)} />
+              <Readout k="QRS (model)" help="Width of the Q–R–S complex, read from the parameters. Over 120 ms is shown in amber" v={Math.round(iv.qrs)} unit="ms" sub={delta(iv.qrs, ivRef.qrs)} color={iv.qrs > 120 ? C.real : undefined} />
+              <Readout k="QT (model)" help="Time from the start of Q to the end of T, read from the parameters" v={Math.round(iv.qt)} unit="ms" sub={delta(iv.qt, ivRef.qt)} />
             </div>
           </Panel>
 

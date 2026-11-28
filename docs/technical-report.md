@@ -32,19 +32,21 @@ A one-vs-rest classifier was trained on real data and evaluated with real-only, 
 
 The original training run used Python 3.14. The Mac verification used Python 3.12 and the exported checkpoints. The repeatability study reproduced DS2 AP exactly for 114 of 126 classifier fine-tunings. The 12 differences were all in S at 2× augmentation. A follow-up investigation observed variation of up to about 0.016 AP. In the supplementary S and F stabilization experiment, all 12 generators collapsed after spectral normalization and label smoothing. The V loss ablation changed Euler scores, while every tested variant stayed within 0.01 AP of the reference augmentation result.
 
+The `moazzam/ecg-workflows` branch combines UI revision `4bfe050` with browser-local CSV import. The combined production build and all eight frontend tests passed. All 114 Python tests passed across macOS and Linux Docker, including dataset and API checks. With FastAPI and the six-model bundle running, Chrome verified all four modules, bundled and imported calibration, and resampling for S, V and F. [SimHeart UI revision](https://github.com/Muhammad-Talha-Saquib001/simheart/commit/4bfe050ed72e24672f63bbe75b19f2b5675f7bf3).
+
 The project is an independent implementation. The reference implementation informed cited constants and layer settings. The evaluation applied the same near-copy check to simulator beats because their fitted parameters came from real beats. The exported weights and downloaded dataset are stored outside the tracked files. [Golany et al., SimGANs](https://proceedings.mlr.press/v119/golany20a.html).
 
 ## 3. Results and interpretation
 
 ### 3.1 Calibration and simulation
 
-The calibration run used the first V beat in the default batch, from MIT-BIH record **223**. After 300 fit steps, the browser and the independent Python check both reported **R² = 0.9254** to four decimal places. Applying **Wide QRS** multiplied the fitted Q, R and S width parameters by 1.6. The displayed model QRS estimate rose from **128 ms to 154 ms**. **Clear** restored the original fitted trace.
+The calibration run in the updated UI used the first V beat in the default batch, from MIT-BIH record **223**. After 300 fit steps, the browser and the independent Python check both reported **R² = 0.9254** to four decimal places. Applying **Wide QRS** multiplied the fitted Q, R and S width parameters by 1.6. The displayed model QRS estimate rose from **128 ms to 154 ms**. **Clear** restored the original fitted trace and the 128 ms estimate.
 
 ![SimHeart comparing a MIT-BIH beat, the fitted beat and the Wide QRS simulation](figures/wide-qrs-what-if.png)
 
-*Figure 1. The live console overlays the record 223 input beat, fitted beat and Wide QRS simulation. Amplitude is displayed in simulator units.*
+*Figure 1. The combined UI overlays the record 223 input beat, fitted beat and Wide QRS simulation. Amplitude is displayed in simulator units.*
 
-For `synthetic-test-beat.csv`, the browser fit returned **R² = 0.9878**. **T wave ×2** changed the simulated trace while the displayed PR, QRS and QT estimates stayed at 76, 93 and 326 ms. **Clear** restored the fitted trace. The fixture was already aligned and contained 216 synthetic samples. The browser rescaled its amplitudes and performed the fit locally.
+On `moazzam/ecg-workflows`, the browser fit for `synthetic-test-beat.csv` returned **R² = 0.9878**. **T wave ×2** changed the simulated trace while the displayed PR, QRS and QT estimates stayed at 76, 93 and 326 ms. **Clear** restored the fitted trace. The fixture was already aligned and contained 216 synthetic samples. The browser rescaled its amplitudes and performed the fit locally.
 
 ### 3.2 Live generator results
 
@@ -59,7 +61,7 @@ For each class, **Generate** used the default checkpoint and a batch size of 32.
 | F, initial | 0.0855 / 0.0509 | 122.38 / 119.93 | 0.48% / 0.21% |
 | F, resample | 0.0882 / 0.0636 | 118.80 / 119.27 | 0.51% / 0.19% |
 
-Each pair is **DCGAN / SimDCGAN**. Checkpoint seeds were 2 / 1 for S, 1 / 1 for V and 2 / 0 for F. MMD² is the console’s estimate of distribution difference from the real batch. Diversity is the mean distance between beats in a batch, expressed in thousandths. Power above 40 Hz is the median share of each beat’s power above that frequency.
+Each pair is **DCGAN / SimDCGAN**. Checkpoint seeds were 2 / 1 for S, 1 / 1 for V and 2 / 0 for F. UI revision `4bfe050` reproduced all six rows at the displayed precision. MMD² is the console’s estimate of distribution difference from the real batch. Diversity is the mean distance between beats in a batch, expressed in thousandths. Power above 40 Hz is the median share of each beat’s power above that frequency.
 
 **Interpretation.** SimDCGAN had less high-frequency power in each of these six paired batches. Its MMD² was lower in both V draws, both F draws and the first S draw. In the second S draw, DCGAN had the lower MMD². Diversity was higher for SimDCGAN in four of the six comparisons. These results describe the sampled batches and default checkpoints. The application measures waveform differences and does not evaluate downstream detection on DS2.
 
