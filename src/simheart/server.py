@@ -13,11 +13,16 @@ built console is served at ``/``.
 Every beat in a response carries ``source`` and ``synthetic``, like :class:`api.Beats`.
 """
 
+import math
 import os
+import threading
 from pathlib import Path
+from typing import Annotated
 
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -26,11 +31,27 @@ from simheart.simulator.ecgsyn import WAVES
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_BEATS = 64
+NON_FINITE = "These values give a beat with non-finite values; use smaller, finite numbers."
+FIT_FAILED = "The fit gave non-finite results; check the beat is not flat and has a normal range."
+
+# JSON allows NaN and Infinity; the simulator and the fitter don't.
+FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
+
+# One fit at a time: each already uses several PyTorch threads, and parallel fits
+# compete for the same cores (five at once took ten times longer than five in a row).
+_calibrate_lock = threading.Lock()
 
 if "SIMHEART_MODEL_DIR" in os.environ:
     api.set_model_dir(os.environ["SIMHEART_MODEL_DIR"])
 
 app = FastAPI(title="SimHeart console API", version="0.1.0")
+
+
+@app.exception_handler(RequestValidationError)
+def _validation_error(request: Request, error: RequestValidationError) -> JSONResponse:
+    """422 with where and what, without echoing the input (it can be large, or NaN)."""
+    detail = [{"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]} for e in error.errors()]
+    return JSONResponse({"detail": detail}, status_code=422)
 
 
 def _beats_json(beats: api.Beats) -> dict:
@@ -43,6 +64,12 @@ def _beats_json(beats: api.Beats) -> dict:
         "synthetic": beats.synthetic,
         "info": info,
     }
+
+
+def _require_finite(beats: api.Beats) -> api.Beats:
+    if not np.isfinite(beats.values).all():
+        raise HTTPException(400, NON_FINITE)
+    return beats
 
 
 def _bundle_error() -> str | None:
@@ -116,26 +143,34 @@ def real(beat_type: str = "V", n: int = 16, random_state: int | None = None) -> 
 
 
 class SimulateRequest(BaseModel):
-    params: dict[str, dict[str, float]]
-    z0: float = 0.0
+    params: dict[str, dict[str, FiniteFloat]]
+    z0: FiniteFloat = 0.0
 
 
 @app.post("/api/simulate")
 def simulate(request: SimulateRequest) -> dict:
     if set(request.params) != set(WAVES):
         raise HTTPException(400, f"params needs exactly the waves {WAVES}")
-    return _beats_json(_call(api.simulate, request.params, request.z0))
+    return _beats_json(_require_finite(_call(api.simulate, request.params, request.z0)))
 
 
 class CalibrateRequest(BaseModel):
-    beat: list[float] = Field(min_length=216, max_length=216)
+    beat: list[FiniteFloat] = Field(min_length=216, max_length=216)
     steps: int = Field(300, ge=10, le=1500)
 
 
 @app.post("/api/calibrate")
 def calibrate(request: CalibrateRequest) -> dict:
-    fitted = _call(api.calibrate, np.asarray(request.beat), request.steps)
-    beat = api.simulate(fitted["params"], fitted["z0"])
+    with _calibrate_lock:
+        fitted = _call(api.calibrate, np.asarray(request.beat), request.steps)
+    numbers = [
+        fitted["z0"],
+        fitted["r2"],
+        *(v for w in fitted["params"].values() for v in w.values()),
+    ]
+    if not all(math.isfinite(v) for v in numbers):
+        raise HTTPException(400, FIT_FAILED)
+    beat = _require_finite(api.simulate(fitted["params"], fitted["z0"]))
     return {**fitted, "fit": _beats_json(beat)}
 
 

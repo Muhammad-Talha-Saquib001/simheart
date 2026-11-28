@@ -54,6 +54,7 @@ SAMPLING_RATE = 360
 R_PEAK_INDEX = 72
 TIME_MS = (np.arange(216) - R_PEAK_INDEX) / SAMPLING_RATE * 1000
 _FIELDS = {"a": A_ROW, "b": B_ROW, "theta_deg": THETA_ROW}
+_FLOAT32_MAX = float(np.finfo(np.float32).max)
 
 _model_dir = Path(__file__).resolve().parents[2] / "exports" / "simheart-models"
 
@@ -171,6 +172,8 @@ def dict_to_params(params: dict[str, dict[str, float]]) -> torch.Tensor:
     for w, wave in enumerate(WAVES):
         for name, row in _FIELDS.items():
             value = params[wave][name]
+            if not abs(value) <= _FLOAT32_MAX:  # also catches NaN
+                raise ValueError(f"{wave} {name} = {value} is not a finite 32-bit number")
             out[row, w] = math.radians(value) if name == "theta_deg" else value
     return out
 
@@ -261,7 +264,10 @@ def calibrate(beat: np.ndarray, steps: int = 300) -> dict:
     but take longer. Measured on CPU for real V beats: 300 steps take about 3 s (R² 0.90-0.96),
     600 steps about 5 s (R² 0.96-0.98).
     """
-    beats = torch.as_tensor(np.asarray(beat, dtype=np.float32)).reshape(1, -1)
+    beat = np.asarray(beat, dtype=np.float64)
+    if not (np.abs(beat) <= _FLOAT32_MAX).all():  # also catches NaN
+        raise ValueError("beat values must be finite 32-bit numbers")
+    beats = torch.as_tensor(beat.astype(np.float32)).reshape(1, -1)
     space = ParamSpace(
         float(_simulator_tables()["b_min"]), float(_simulator_tables()["theta_r_max"])
     )
