@@ -940,6 +940,11 @@ table.data tr:last-child td {
   color: var(--alert);
 }
 
+/* amber, as for a QRS over 120 ms: worth a look, not an error */
+.ecg-file-warning {
+  color: var(--real);
+}
+
 .thumbs {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));

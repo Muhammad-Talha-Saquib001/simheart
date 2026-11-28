@@ -165,7 +165,7 @@ npm test         # simulator parity and gradient checks
 
 ### Generate new ECG patterns
 
-- **From an ECG beat:** open **Calibrate**, choose a bundled MIT-BIH validation beat or import a single-column CSV of a prepared beat in mV. The CSV needs 216 numeric rows at 360 Hz, with the R peak at row 73 (sample index 72). An optional first row can be named `amplitude_mv`. The browser scales imported amplitudes to simulator units and fits locally. After **Calibrate twin**, choose a scenario such as **Wide QRS** to compare the input beat, calibrated fit and synthetic what-if on the same plot.
+- **From an ECG beat:** open **Calibrate**, choose a bundled MIT-BIH validation beat or import a single-column CSV of a prepared beat in mV. The CSV needs 216 numeric rows at 360 Hz, with the R peak at row 73 (sample index 72). An optional first row can be named `amplitude_mv`. If the largest deflection isn't near row 73, the console warns that the beat may be misaligned but still fits it. The browser scales imported amplitudes to simulator units and fits locally. After **Calibrate twin**, choose a scenario such as **Wide QRS** to compare the input beat, calibrated fit and synthetic what-if on the same plot.
 - **From the trained models:** open **Generate**, select S, V or F, then **Resample** to draw new beats from both DCGAN and SimDCGAN. The lab compares those samples with real MIT-BIH validation beats. The trained models sample by class and the CSV is used by the simulator workflow.
 
 ## Tests

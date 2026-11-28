@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { backend, NOTICE, useTwin, type BeatsResponse } from "../backend";
 import { TIME_MS, TYPICAL, WAVES, cloneParams, modelIntervals, simulate, type Field, type Params, type Wave } from "../engine/ecgsyn";
 import { Calibrator, START_NAMES } from "../engine/fitting";
-import { importBeat, MAX_BEAT_FILE_BYTES } from "../engine/importBeat";
+import { alignmentWarning, importBeat, MAX_BEAT_FILE_BYTES } from "../engine/importBeat";
 import { mulberry32 } from "../engine/rhythm";
 import { C, Legend, TracePlot } from "../ui/Plot";
 import { Panel, Progress, Readout, Seg, Steps } from "../ui/controls";
@@ -55,6 +55,7 @@ export function Calibrate() {
   const [imported, setImported] = useState<Target | null>(null);
   const [readingFile, setReadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [fileWarning, setFileWarning] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const cal = useRef<Calibrator | null>(null);
   const [running, setRunning] = useState(false);
@@ -92,10 +93,13 @@ export function Calibrate() {
 
   const loadFile = async (file: File) => {
     setFileError(null);
+    setFileWarning(null);
     setReadingFile(true);
     try {
       if (file.size > MAX_BEAT_FILE_BYTES) throw new Error("Choose a CSV smaller than 16 KB.");
-      setImported({ values: importBeat(await file.text()), label: file.name, real: false });
+      const values = importBeat(await file.text());
+      setImported({ values, label: file.name, real: false });
+      setFileWarning(alignmentWarning(values));
     } catch (e) {
       setFileError((e as Error).message);
     } finally {
@@ -243,7 +247,8 @@ export function Calibrate() {
           {imported ? (
             <>
               <p className="note" role="status">Selected: {imported.label}</p>
-              <button className="btn ghost" disabled={readingFile} onClick={() => { setImported(null); setFileError(null); }}>
+              {fileWarning && <p className="note ecg-file-warning" role="status">{fileWarning}</p>}
+              <button className="btn ghost" disabled={readingFile} onClick={() => { setImported(null); setFileError(null); setFileWarning(null); }}>
                 Use {online ? "MIT-BIH" : "demo"} examples
               </button>
             </>

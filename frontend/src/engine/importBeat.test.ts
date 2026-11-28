@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { N_SAMPLES, R_PEAK_INDEX, TYPICAL, cloneParams, simulate } from "./ecgsyn";
 import { Calibrator, DEFAULT_SPACE } from "./fitting";
-import { importBeat } from "./importBeat";
+import { alignmentWarning, importBeat } from "./importBeat";
 
 const example = Array.from({ length: N_SAMPLES }, (_, index) => index / 100);
 
@@ -34,5 +34,13 @@ describe("importBeat", () => {
     const next = simulate(changed, fitted.z0);
     expect(next).toHaveLength(N_SAMPLES);
     expect(Math.max(...next.map((value, index) => Math.abs(value - fitted.z[index])))).toBeGreaterThan(0.001);
+  });
+
+  it("warns, without rejecting, when the main deflection is not at row 73", () => {
+    const beat = Array.from(simulate(TYPICAL.V, 0));
+    expect(alignmentWarning(importBeat(beat.join("\n")))).toBeNull();
+    expect(alignmentWarning(importBeat(beat.map((value) => -value).join("\n")))).toBeNull();
+    const shifted = beat.map((_, index) => beat[(index - 40 + N_SAMPLES) % N_SAMPLES]);
+    expect(alignmentWarning(importBeat(shifted.join("\n")))).toMatch(/row 73/);
   });
 });
