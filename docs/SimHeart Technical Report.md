@@ -32,7 +32,7 @@ A one-vs-rest classifier was trained on real data and evaluated with real-only, 
 
 The original training run used Python 3.14. A second, independent installation used Python 3.12 and the exported checkpoints. The repeatability study reproduced DS2 AP exactly for 114 of 126 classifier fine-tunings. The 12 differences were all in S at 2× augmentation. A follow-up investigation observed variation of up to about 0.016 AP. In the supplementary S and F stabilization experiment, all 12 generators collapsed after spectral normalization and label smoothing. The V loss ablation changed Euler scores, while every tested variant stayed within 0.01 AP of the reference augmentation result.
 
-The `moazzam/ecg-workflows` branch combines UI revision `4bfe050` with browser-local CSV import. The combined production build and all frontend tests passed. All 114 Python tests passed on two separate installations, including dataset and API checks. With FastAPI and the six-model bundle running, a browser check verified all four modules, bundled and imported calibration, and resampling for S, V and F. [SimHeart UI revision](https://github.com/Muhammad-Talha-Saquib001/simheart/commit/4bfe050ed72e24672f63bbe75b19f2b5675f7bf3).
+The `moazzam/ecg-workflows` branch combines UI revision `4bfe050` with browser-local CSV import. The production build and all nine frontend tests passed. All 117 Python tests passed across the verification environments, including dataset and API checks. With FastAPI and the six-model bundle running, a browser check verified all four modules, bundled and imported calibration, and resampling for S, V and F. [SimHeart UI revision](https://github.com/Muhammad-Talha-Saquib001/simheart/commit/4bfe050ed72e24672f63bbe75b19f2b5675f7bf3).
 
 The project is an independent implementation. The reference implementation informed cited constants and layer settings. The evaluation applied the same near-copy check to simulator beats because their fitted parameters came from real beats. The exported weights and downloaded dataset are stored outside the tracked files. [Golany et al., SimGANs](https://proceedings.mlr.press/v119/golany20a.html).
 
@@ -46,7 +46,7 @@ The calibration run in the updated UI used the first V beat in the default batch
 
 *Figure 1. The combined UI overlays the record 223 input beat, fitted beat and Wide QRS simulation. Amplitude is displayed in simulator units.*
 
-On `moazzam/ecg-workflows`, the browser fit for `synthetic-test-beat.csv` returned **R² = 0.9878**. **T wave ×2** changed the simulated trace while the displayed PR, QRS and QT estimates stayed at 76, 93 and 326 ms. **Clear** restored the fitted trace. The fixture was already aligned and contained 216 synthetic samples. The browser rescaled its amplitudes and performed the fit locally.
+On `moazzam/ecg-workflows`, the browser fit for `synthetic-test-beat.csv` returned **R² = 0.9878**. **T wave ×2** changed the simulated trace while the displayed PR, QRS and QT estimates stayed at 76, 93 and 326 ms. **Clear** restored the fitted trace. The fixture contained 216 aligned synthetic samples. The browser scales and fits imported beats locally. It warns when it detects a possible alignment issue and still allows fitting.
 
 ### 3.2 Live generator results
 

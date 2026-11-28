@@ -52,10 +52,9 @@ export function Calibrate() {
   const [pick, setPick] = useState(0);
   const [seed, setSeed] = useState(0);
   const [err, setErr] = useState<string | null>(null);
-  const [imported, setImported] = useState<Target | null>(null);
+  const [imported, setImported] = useState<(Target & { warning: string | null }) | null>(null);
   const [readingFile, setReadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [fileWarning, setFileWarning] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const cal = useRef<Calibrator | null>(null);
   const [running, setRunning] = useState(false);
@@ -93,13 +92,11 @@ export function Calibrate() {
 
   const loadFile = async (file: File) => {
     setFileError(null);
-    setFileWarning(null);
     setReadingFile(true);
     try {
       if (file.size > MAX_BEAT_FILE_BYTES) throw new Error("Choose a CSV smaller than 16 KB.");
       const values = importBeat(await file.text());
-      setImported({ values, label: file.name, real: false });
-      setFileWarning(alignmentWarning(values));
+      setImported({ values, label: file.name, real: false, warning: alignmentWarning(values) });
     } catch (e) {
       setFileError((e as Error).message);
     } finally {
@@ -247,8 +244,8 @@ export function Calibrate() {
           {imported ? (
             <>
               <p className="note" role="status">Selected: {imported.label}</p>
-              {fileWarning && <p className="note ecg-file-warning" role="status">{fileWarning}</p>}
-              <button className="btn ghost" disabled={readingFile} onClick={() => { setImported(null); setFileError(null); setFileWarning(null); }}>
+              {imported.warning && <p className="note ecg-file-warning" role="status">{imported.warning}</p>}
+              <button className="btn ghost" disabled={readingFile} onClick={() => { setImported(null); setFileError(null); }}>
                 Use {online ? "MIT-BIH" : "demo"} examples
               </button>
             </>
