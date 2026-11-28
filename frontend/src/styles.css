@@ -914,6 +914,37 @@ table.data tr:last-child td {
   max-width: 100%;
 }
 
+.ecg-file {
+  width: 100%;
+  margin-top: 0.4rem;
+  color: var(--text-2);
+  font: inherit;
+}
+
+.ecg-file::file-selector-button {
+  margin-right: 0.6rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--line-2);
+  border-radius: 0.25rem;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ecg-file-note {
+  margin-bottom: 0.9rem;
+}
+
+.ecg-file-error {
+  color: var(--alert);
+}
+
+/* amber, as for a QRS over 120 ms: worth a look, not an error */
+.ecg-file-warning {
+  color: var(--real);
+}
+
 .thumbs {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));

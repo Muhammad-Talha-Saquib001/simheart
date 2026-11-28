@@ -1,5 +1,11 @@
 """The console's HTTP layer (simheart.server) over a small test bundle."""
 
+import json
+import math
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 import pytest
 import torch
@@ -57,10 +63,73 @@ def test_generated_and_real_beats_say_what_they_are(client):
     assert real["info"]["records"] == ["118"] * 2
 
 
-def test_bad_requests_are_400_and_missing_generators_503(client):
+def test_bad_requests_are_400(client):
     assert client.get("/api/generate", params={"beat_type": "X"}).status_code == 400
     assert client.get("/api/generate", params={"beat_type": "S"}).status_code == 400
-    assert client.get("/api/generate", params={"beat_type": "V", "seed": 9}).status_code == 503
+    missing_seed = client.get("/api/generate", params={"beat_type": "V", "seed": 9})
+    assert missing_seed.status_code == 400
+    assert "available seeds: 0" in missing_seed.json()["detail"]
+    assert str(api.model_dir()) not in missing_seed.json()["detail"]
+
+
+def _json(body: dict) -> dict:
+    """Send NaN and Infinity as JSON allows them (httpx's json= refuses to)."""
+    return {"content": json.dumps(body), "headers": {"content-type": "application/json"}}
+
+
+def test_non_finite_numbers_are_rejected(client):
+    params = client.get("/api/presets").json()["V"]["params"]
+    nan_amplitude = {w: dict(p) for w, p in params.items()}
+    nan_amplitude["R"]["a"] = float("nan")
+    assert client.post("/api/simulate", **_json({"params": nan_amplitude})).status_code == 422
+    assert (
+        client.post("/api/simulate", **_json({"params": params, "z0": math.inf})).status_code == 422
+    )
+    beat = client.post("/api/simulate", json={"params": params}).json()["values"][0]
+    nan_beat = {"beat": [math.nan, *beat[1:]], "steps": 10}
+    response = client.post("/api/calibrate", **_json(nan_beat))
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "beat", 0]
+    assert "input" not in response.json()["detail"][0]  # never echoed back
+    # Finite inputs that overflow inside the model are a bad request, not a server error.
+    huge_width = {w: dict(p) for w, p in params.items()}
+    huge_width["R"]["b"] = 1e308  # beyond 32-bit floats
+    response = client.post("/api/simulate", json={"params": huge_width})
+    assert response.status_code == 400 and "32-bit" in response.json()["detail"]
+    huge_height = {w: dict(p) for w, p in params.items()}
+    huge_height["R"]["a"] = 3e38  # fits, but the beat overflows
+    response = client.post("/api/simulate", json={"params": huge_height})
+    assert response.status_code == 400 and "non-finite" in response.json()["detail"]
+    huge_beat = {"beat": [1e300] * 108 + [-1e300] * 108, "steps": 10}
+    assert client.post("/api/calibrate", json=huge_beat).status_code == 400
+    flat = client.post("/api/calibrate", json={"beat": [0.0] * 216, "steps": 10})
+    assert flat.status_code == 400 and "not flat" in flat.json()["detail"]
+
+
+def test_calibrations_run_one_at_a_time(client, monkeypatch):
+    params = client.get("/api/presets").json()["V"]["params"]
+    beat = client.post("/api/simulate", json={"params": params}).json()["values"][0]
+    running, most = 0, 0
+    count = threading.Lock()
+
+    def slow_fit(beat, steps):
+        nonlocal running, most
+        with count:
+            running += 1
+            most = max(most, running)
+        time.sleep(0.2)
+        with count:
+            running -= 1
+        return {"params": params, "z0": 0.0, "r2": 1.0}
+
+    monkeypatch.setattr(api, "calibrate", slow_fit)
+    with ThreadPoolExecutor(3) as pool:
+        codes = list(
+            pool.map(
+                lambda _: client.post("/api/calibrate", json={"beat": beat}).status_code, range(3)
+            )
+        )
+    assert codes == [200] * 3 and most == 1
 
 
 def test_presets_simulate_and_calibrate_round_trip(client):
@@ -79,5 +148,6 @@ def test_status_without_a_bundle_still_answers(client, tmp_path):
         body = client.get("/api/status").json()
         assert body["ok"] and not body["bundle"] and "not found" in body["bundle_error"]
         assert client.get("/api/real").status_code == 503
+        assert client.get("/api/generate", params={"seed": 0}).status_code == 503
     finally:
         api.set_model_dir(previous)

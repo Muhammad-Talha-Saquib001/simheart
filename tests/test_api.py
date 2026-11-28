@@ -114,3 +114,10 @@ def test_invalid_arguments_are_rejected(bundle):
         api.generate("N")
     with pytest.raises(ValueError, match="model"):
         api.generate("V", model="vae")
+
+
+def test_a_seed_not_in_the_bundle_names_the_available_seeds(bundle):
+    with pytest.raises(ValueError, match="seed 7; available seeds: 0") as error:
+        api.generate("V", seed=7)
+    assert str(bundle) not in str(error.value)
+    assert api.generate("V", 2, seed=0).values.shape == (2, 216)
